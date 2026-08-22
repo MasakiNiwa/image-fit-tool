@@ -51,6 +51,15 @@
     }
     .preview-heading h2 { margin: 0; font-size: 20px; }
     .crop-help { margin: 4px 0 0; color: #666; font-size: 13px; line-height: 1.5; }
+    .preset-group {
+      padding: 12px;
+      border: 1px solid #dfe4ea;
+      border-radius: 12px;
+      background: #f7f9fb;
+    }
+    .preset-note { margin: 8px 0 0; color: #555; font-size: 12px; line-height: 1.55; }
+    .preset-source { display: inline-block; margin-top: 5px; color: #245f9e; font-size: 12px; }
+    .preset-source[hidden] { display: none; }
     .secondary {
       flex: 0 0 auto;
       min-height: 44px;
@@ -124,6 +133,15 @@
       border: 1px solid #d5d8de; border-radius: 10px; padding: 9px 6px; background: #fff; cursor: pointer;
     }
     .ratio-button.active { border-color: #222; background: #222; color: #fff; }
+    .custom-ratio {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: end;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .custom-ratio[hidden] { display: none; }
+    .custom-ratio .separator { padding-bottom: 12px; color: #666; font-weight: 800; }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .field label { display: block; margin-bottom: 5px; color: #555; font-size: 13px; }
     input[type="number"], select {
@@ -137,6 +155,10 @@
     .primary:disabled { opacity: .45; cursor: not-allowed; }
     .result { display: none; margin-top: 14px; padding: 13px; border-radius: 12px; background: #f3f5f8; }
     .result strong { display: block; margin-bottom: 4px; }
+    .preset-validation { display: grid; gap: 5px; margin: 10px 0 0; padding: 9px; border-radius: 9px; background: #fff; font-size: 12px; }
+    .validation-item { display: flex; gap: 6px; align-items: flex-start; }
+    .validation-item.ok { color: #25613f; }
+    .validation-item.warning { color: #9b4f00; }
     .download { display: none; margin-top: 10px; background: #e6f3eb; color: #174b2d; text-decoration: none; text-align: center; }
     .status { min-height: 1.5em; margin-top: 10px; font-size: 13px; color: #666; }
     canvas { display: none; }
@@ -182,6 +204,23 @@
         </div>
         <button class="secondary" id="resetCropButton" type="button" disabled>中央に戻す</button>
       </div>
+      <div class="group preset-group">
+        <label for="purposePreset">用途プリセット</label>
+        <select id="purposePreset">
+          <option value="manual">手動で設定</option>
+          <optgroup label="プロフィール画像">
+            <option value="generic-profile">汎用プロフィール（1024 × 1024）</option>
+            <option value="x-profile">X プロフィール（400 × 400）</option>
+          </optgroup>
+          <optgroup label="LINE 静止画スタンプ">
+            <option value="line-sticker">スタンプ画像（370 × 320以内）</option>
+            <option value="line-main">メイン画像（240 × 240）</option>
+            <option value="line-tab">タブ画像（96 × 74）</option>
+          </optgroup>
+        </select>
+        <p class="preset-note" id="presetNote">用途を選ぶと、比率・解像度・形式・容量目安をまとめて設定します。</p>
+        <a class="preset-source" id="presetSource" href="#" target="_blank" rel="noreferrer" hidden>公式仕様を確認</a>
+      </div>
       <div class="group crop-ratio-group">
         <label>アスペクト比</label>
         <div class="ratio-grid" id="ratioGrid">
@@ -193,6 +232,18 @@
           <button class="ratio-button" data-ratio="2:3" type="button">2:3</button>
           <button class="ratio-button" data-ratio="16:9" type="button">16:9</button>
           <button class="ratio-button" data-ratio="9:16" type="button">9:16</button>
+          <button class="ratio-button" data-ratio="custom" type="button">カスタム</button>
+        </div>
+        <div class="custom-ratio" id="customRatioFields" hidden>
+          <div class="field">
+            <label for="customRatioWidth">横</label>
+            <input id="customRatioWidth" type="number" min="0.01" max="9999" step="0.01" inputmode="decimal" value="1">
+          </div>
+          <span class="separator" aria-hidden="true">:</span>
+          <div class="field">
+            <label for="customRatioHeight">縦</label>
+            <input id="customRatioHeight" type="number" min="0.01" max="9999" step="0.01" inputmode="decimal" value="1">
+          </div>
         </div>
         <p class="hint">比率を選び、白い枠を指やマウスで動かして位置を調整できます。</p>
       </div>
@@ -235,7 +286,7 @@
 
       <button class="primary" id="processButton" type="button" disabled>画像を作成</button>
       <div class="status" id="status"></div>
-      <div class="result" id="result"></div>
+      <div class="result" id="result" role="status" aria-live="polite"></div>
       <a class="download" id="downloadLink">画像を保存</a>
     </div>
   </section>
@@ -254,7 +305,13 @@
   const cropInfo = document.getElementById('cropInfo');
   const resetCropButton = document.getElementById('resetCropButton');
   const imageInfo = document.getElementById('imageInfo');
+  const purposePreset = document.getElementById('purposePreset');
+  const presetNote = document.getElementById('presetNote');
+  const presetSource = document.getElementById('presetSource');
   const ratioGrid = document.getElementById('ratioGrid');
+  const customRatioFields = document.getElementById('customRatioFields');
+  const customRatioWidth = document.getElementById('customRatioWidth');
+  const customRatioHeight = document.getElementById('customRatioHeight');
   const widthInput = document.getElementById('widthInput');
   const heightInput = document.getElementById('heightInput');
   const formatSelect = document.getElementById('formatSelect');
@@ -266,9 +323,48 @@
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
 
+  const LINE_GUIDELINE_URL = 'https://creator.line.me/en/guideline/sticker/';
+  const X_PROFILE_GUIDELINE_URL = 'https://help.x.com/en/managing-your-account/common-issues-when-uploading-profile-photo';
+  const PRESETS = {
+    'generic-profile': {
+      name: '汎用プロフィール',
+      ratio: '1:1', width: 1024, height: 1024, mime: 'image/jpeg', targetMB: 2,
+      exactSize: true,
+      note: '丸型表示にも使いやすい汎用正方形です。主要部分を中央寄りに配置してください。'
+    },
+    'x-profile': {
+      name: 'X プロフィール',
+      ratio: '1:1', width: 400, height: 400, mime: 'image/jpeg', targetMB: 2,
+      maxMB: 2, exactSize: true, source: X_PROFILE_GUIDELINE_URL,
+      note: 'X公式の推奨400 × 400px、プロフィール画像の上限2MBに合わせます。'
+    },
+    'line-sticker': {
+      name: 'LINE スタンプ画像',
+      ratio: 'custom', ratioWidth: 37, ratioHeight: 32, width: 370, height: 320,
+      mime: 'image/png', targetMB: 1, maxMB: 1, maxSize: true, requireEven: true, requireTransparency: true,
+      source: LINE_GUIDELINE_URL,
+      note: 'LINE静止画スタンプの上限370 × 320pxです。背景透過と、絵柄の周囲約10pxの余白も確認してください。'
+    },
+    'line-main': {
+      name: 'LINE メイン画像',
+      ratio: '1:1', width: 240, height: 240, mime: 'image/png', targetMB: 1,
+      maxMB: 1, exactSize: true, requireEven: true, requireTransparency: true, source: LINE_GUIDELINE_URL,
+      note: 'LINE静止画スタンプのメイン画像240 × 240pxです。背景透過が必要です。'
+    },
+    'line-tab': {
+      name: 'LINE タブ画像',
+      ratio: 'custom', ratioWidth: 48, ratioHeight: 37, width: 96, height: 74,
+      mime: 'image/png', targetMB: 1, maxMB: 1, exactSize: true, requireEven: true, requireTransparency: true,
+      source: LINE_GUIDELINE_URL,
+      note: 'LINE静止画スタンプのトークルームタブ画像96 × 74pxです。背景透過が必要です。'
+    }
+  };
+
   let sourceFile = null;
   let sourceUrl = null;
   let selectedRatio = 'original';
+  let customRatio = { width: 1, height: 1 };
+  let activePresetKey = 'manual';
   let cropPosition = { x: .5, y: .5 };
   let dragState = null;
   let lastDownloadUrl = null;
@@ -292,33 +388,53 @@
     if (file) loadImage(file);
   });
 
+  purposePreset.addEventListener('change', () => applyPreset(purposePreset.value));
+
   ratioGrid.addEventListener('click', event => {
     const button = event.target.closest('.ratio-button');
     if (!button) return;
-    document.querySelectorAll('.ratio-button').forEach(btn => btn.classList.remove('active'));
-    button.classList.add('active');
+    markSettingsCustomized();
     selectedRatio = button.dataset.ratio;
+    updateRatioControls();
     resetCropPosition();
     syncOutputSize();
     updateCropUI();
     resetResult();
   });
 
+  [customRatioWidth, customRatioHeight].forEach(input => input.addEventListener('input', () => {
+    const width = Number(customRatioWidth.value);
+    const height = Number(customRatioHeight.value);
+    if (!(width > 0) || !(height > 0)) return;
+    customRatio = { width, height };
+    if (selectedRatio !== 'custom') return;
+    markSettingsCustomized();
+    resetCropPosition();
+    syncOutputSize();
+    updateCropUI();
+    resetResult();
+  }));
+
   widthInput.addEventListener('input', () => {
+    markSettingsCustomized();
     const ratio = getNumericRatio();
     const width = Number(widthInput.value);
     if (ratio && width > 0) heightInput.value = Math.max(1, Math.round(width / ratio));
   });
 
   heightInput.addEventListener('input', () => {
+    markSettingsCustomized();
     const ratio = getNumericRatio();
     const height = Number(heightInput.value);
     if (ratio && height > 0) widthInput.value = Math.max(1, Math.round(height * ratio));
   });
 
   formatSelect.addEventListener('change', () => {
-    targetSizeInput.disabled = formatSelect.value === 'image/png';
+    markSettingsCustomized();
+    updateTargetSizeState();
   });
+
+  targetSizeInput.addEventListener('input', markSettingsCustomized);
 
   processButton.addEventListener('click', processImage);
   resetCropButton.addEventListener('click', () => {
@@ -355,18 +471,83 @@
       imageInfo.textContent = `${file.name} / ${width} × ${height}px / ${formatBytes(file.size)} / ${file.type || '形式不明'}`;
       workspace.style.display = 'grid';
       processButton.disabled = false;
-      selectedRatio = 'original';
-      document.querySelectorAll('.ratio-button').forEach(btn => btn.classList.toggle('active', btn.dataset.ratio === 'original'));
-      resetCropPosition();
-      syncOutputSize();
-      resetResult();
-      requestAnimationFrame(updateCropUI);
+      if (activePresetKey !== 'manual') {
+        applyPreset(activePresetKey);
+      } else {
+        selectedRatio = 'original';
+        updateRatioControls();
+        resetCropPosition();
+        syncOutputSize();
+        resetResult();
+        requestAnimationFrame(updateCropUI);
+      }
     };
+  }
+
+  function applyPreset(key) {
+    const preset = PRESETS[key];
+    activePresetKey = preset ? key : 'manual';
+    purposePreset.value = activePresetKey;
+    renderPresetInfo();
+    if (!preset) return;
+
+    if (preset.ratio === 'custom') {
+      customRatio = { width: preset.ratioWidth, height: preset.ratioHeight };
+    }
+    selectedRatio = preset.ratio;
+    updateRatioControls();
+    widthInput.value = preset.width;
+    heightInput.value = preset.height;
+    formatSelect.value = preset.mime;
+    targetSizeInput.value = preset.targetMB;
+    updateTargetSizeState();
+    resetCropPosition();
+    resetResult();
+    requestAnimationFrame(updateCropUI);
+  }
+
+  function markSettingsCustomized() {
+    if (activePresetKey === 'manual') return;
+    activePresetKey = 'manual';
+    purposePreset.value = 'manual';
+    renderPresetInfo();
+  }
+
+  function renderPresetInfo() {
+    const preset = PRESETS[activePresetKey];
+    if (!preset) {
+      presetNote.textContent = '用途を選ぶと、比率・解像度・形式・容量目安をまとめて設定します。';
+      presetSource.hidden = true;
+      presetSource.removeAttribute('href');
+      return;
+    }
+    presetNote.textContent = preset.note;
+    if (preset.source) {
+      presetSource.href = preset.source;
+      presetSource.hidden = false;
+    } else {
+      presetSource.hidden = true;
+      presetSource.removeAttribute('href');
+    }
+  }
+
+  function updateRatioControls() {
+    document.querySelectorAll('.ratio-button').forEach(btn => btn.classList.toggle('active', btn.dataset.ratio === selectedRatio));
+    customRatioFields.hidden = selectedRatio !== 'custom';
+    customRatioWidth.value = customRatio.width;
+    customRatioHeight.value = customRatio.height;
+  }
+
+  function updateTargetSizeState() {
+    targetSizeInput.disabled = formatSelect.value === 'image/png';
   }
 
   function getNumericRatio() {
     if (selectedRatio === 'original') {
       return previewImage.naturalWidth / previewImage.naturalHeight;
+    }
+    if (selectedRatio === 'custom') {
+      return customRatio.width / customRatio.height;
     }
     const [w, h] = selectedRatio.split(':').map(Number);
     return w / h;
@@ -549,7 +730,8 @@
       downloadLink.style.display = 'block';
 
       const qualityText = mime === 'image/png' ? 'PNG（画質指定なし）' : `品質 約${Math.round(quality * 100)}%`;
-      result.innerHTML = `<strong>作成完了</strong>${outW} × ${outH}px / ${formatBytes(blob.size)}<br>${formatName(mime)} / ${qualityText}`;
+      const validationHtml = buildPresetValidation(blob, outW, outH, mime);
+      result.innerHTML = `<strong>作成完了</strong>${outW} × ${outH}px / ${formatBytes(blob.size)}<br>${formatName(mime)} / ${qualityText}${validationHtml}`;
       result.style.display = 'block';
       status.textContent = '';
     } catch (error) {
@@ -557,6 +739,53 @@
       status.textContent = '処理に失敗しました。別の画像や小さい解像度でお試しください。';
     } finally {
       processButton.disabled = false;
+    }
+  }
+
+  function buildPresetValidation(blob, outW, outH, mime) {
+    const preset = PRESETS[activePresetKey];
+    if (!preset) return '';
+
+    const checks = [];
+    const sizeOkay = preset.maxSize
+      ? outW <= preset.width && outH <= preset.height
+      : !preset.exactSize || (outW === preset.width && outH === preset.height);
+    const sizeRule = preset.maxSize ? `${preset.width} × ${preset.height}px以内` : `${preset.width} × ${preset.height}px`;
+    checks.push({ ok: sizeOkay, text: `寸法 ${outW} × ${outH}px（条件: ${sizeRule}）` });
+    checks.push({ ok: mime === preset.mime, text: `形式 ${formatName(mime)}（条件: ${formatName(preset.mime)}）` });
+
+    if (preset.maxMB) {
+      checks.push({ ok: blob.size <= preset.maxMB * 1024 * 1024, text: `容量 ${formatBytes(blob.size)}（上限 ${preset.maxMB}MB）` });
+    }
+    if (preset.requireEven) {
+      checks.push({ ok: outW % 2 === 0 && outH % 2 === 0, text: '幅・高さが偶数' });
+    }
+    if (preset.requireTransparency) {
+      const transparency = canvasHasTransparency();
+      checks.push({
+        ok: transparency === true,
+        text: transparency === true
+          ? '透過背景を確認'
+          : transparency === false
+            ? '透過背景が見つかりません（LINEは背景透過必須）'
+            : '透過背景を自動確認できませんでした'
+      });
+    }
+
+    const rows = checks.map(check => `<div class="validation-item ${check.ok ? 'ok' : 'warning'}"><span aria-hidden="true">${check.ok ? '✓' : '⚠'}</span><span>${check.text}</span></div>`).join('');
+    return `<div class="preset-validation"><b>${preset.name}の自動確認</b>${rows}</div>`;
+  }
+
+  function canvasHasTransparency() {
+    try {
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      for (let i = 3; i < data.length; i += 4) {
+        if (data[i] < 255) return true;
+      }
+      return false;
+    } catch (error) {
+      console.warn('透過情報を確認できませんでした', error);
+      return null;
     }
   }
 

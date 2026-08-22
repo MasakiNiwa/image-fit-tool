@@ -4,167 +4,373 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Image Fit Tool</title>
-
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
+    * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #f5f5f7;
       color: #222;
     }
-
-    .app {
-      width: min(92%, 900px);
-      margin: 0 auto;
-      padding: 32px 0;
-    }
-
-    h1 {
-      margin-bottom: 4px;
-    }
-
-    .description {
-      margin-top: 0;
-      color: #666;
-    }
-
+    button, input, select { font: inherit; }
+    .app { width: min(94%, 1100px); margin: 0 auto; padding: 24px 0 48px; }
+    h1 { margin: 0 0 6px; font-size: clamp(28px, 6vw, 42px); }
+    .description { margin: 0; color: #666; }
+    .privacy { margin: 10px 0 0; color: #2f6f4e; font-size: 14px; }
     .drop-area {
       margin-top: 24px;
-      padding: 48px 20px;
+      padding: 40px 20px;
       border: 2px dashed #999;
       border-radius: 18px;
-      background: white;
+      background: #fff;
       text-align: center;
       cursor: pointer;
     }
-
-    .drop-area.dragover {
-      background: #eef4ff;
-      border-color: #3367d6;
+    .drop-area.dragover { background: #eef4ff; border-color: #3367d6; }
+    input[type="file"] { display: none; }
+    .workspace { display: none; margin-top: 20px; gap: 18px; }
+    .card { background: #fff; border-radius: 18px; padding: 16px; box-shadow: 0 8px 26px rgba(0,0,0,.05); }
+    .preview-card { min-width: 0; }
+    .preview-shell {
+      min-height: 280px;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      border-radius: 14px;
+      background: #eceef2;
     }
-
-    input[type="file"] {
-      display: none;
+    #previewImage { display: block; max-width: 100%; max-height: 62vh; object-fit: contain; }
+    .info { margin-top: 12px; font-size: 14px; color: #555; overflow-wrap: anywhere; }
+    .settings h2 { margin: 0 0 14px; font-size: 20px; }
+    .group { margin-bottom: 18px; }
+    .group > label { display: block; margin-bottom: 7px; font-weight: 700; font-size: 14px; }
+    .ratio-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+    .ratio-button {
+      border: 1px solid #d5d8de; border-radius: 10px; padding: 9px 6px; background: #fff; cursor: pointer;
     }
-
-    .preview {
-      display: none;
-      margin-top: 24px;
-      padding: 16px;
-      background: white;
-      border-radius: 18px;
+    .ratio-button.active { border-color: #222; background: #222; color: #fff; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .field label { display: block; margin-bottom: 5px; color: #555; font-size: 13px; }
+    input[type="number"], select {
+      width: 100%; min-height: 44px; padding: 9px 11px; border: 1px solid #ccd0d7; border-radius: 10px; background: #fff;
     }
-
-    .preview img {
-      display: block;
-      max-width: 100%;
-      max-height: 60vh;
-      margin: auto;
-      border-radius: 12px;
+    .hint { margin: 7px 0 0; color: #777; font-size: 12px; line-height: 1.5; }
+    .primary, .download {
+      width: 100%; border: 0; border-radius: 12px; padding: 13px 16px; font-weight: 800; cursor: pointer;
     }
-
-    .info {
-      margin-top: 12px;
-      font-size: 14px;
-      color: #555;
+    .primary { background: #222; color: #fff; }
+    .primary:disabled { opacity: .45; cursor: not-allowed; }
+    .result { display: none; margin-top: 14px; padding: 13px; border-radius: 12px; background: #f3f5f8; }
+    .result strong { display: block; margin-bottom: 4px; }
+    .download { display: none; margin-top: 10px; background: #e6f3eb; color: #174b2d; text-decoration: none; text-align: center; }
+    .status { min-height: 1.5em; margin-top: 10px; font-size: 13px; color: #666; }
+    canvas { display: none; }
+    @media (min-width: 760px) {
+      .workspace { grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr); align-items: start; }
+      .settings { position: sticky; top: 16px; }
+    }
+    @media (max-width: 430px) {
+      .ratio-grid { grid-template-columns: repeat(3, 1fr); }
+      .app { padding-top: 18px; }
+      .preview-shell { min-height: 220px; }
     }
   </style>
 </head>
-
 <body>
-
 <div class="app">
-
   <h1>Image Fit Tool</h1>
-
-  <p class="description">
-    画像を投稿先に合わせて、トリミング・縮小するツール
-  </p>
+  <p class="description">画像を投稿先に合わせて、比率・解像度・容量を整えるツール</p>
+  <p class="privacy">画像処理はブラウザ内で行い、画像ファイルをサーバーへ送信しません。</p>
 
   <label class="drop-area" id="dropArea">
     <strong>画像をここにドロップ</strong><br>
     またはタップして画像を選択
-
-    <input
-      type="file"
-      id="fileInput"
-      accept="image/*"
-    >
+    <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/*">
   </label>
 
-  <div class="preview" id="preview">
-    <img id="previewImage">
-    <div class="info" id="imageInfo"></div>
-  </div>
+  <section class="workspace" id="workspace">
+    <div class="card preview-card">
+      <div class="preview-shell"><img id="previewImage" alt="選択画像のプレビュー"></div>
+      <div class="info" id="imageInfo"></div>
+    </div>
 
+    <div class="card settings">
+      <h2>出力設定</h2>
+
+      <div class="group">
+        <label>アスペクト比</label>
+        <div class="ratio-grid" id="ratioGrid">
+          <button class="ratio-button active" data-ratio="original" type="button">元画像</button>
+          <button class="ratio-button" data-ratio="1:1" type="button">1:1</button>
+          <button class="ratio-button" data-ratio="4:3" type="button">4:3</button>
+          <button class="ratio-button" data-ratio="3:4" type="button">3:4</button>
+          <button class="ratio-button" data-ratio="3:2" type="button">3:2</button>
+          <button class="ratio-button" data-ratio="2:3" type="button">2:3</button>
+          <button class="ratio-button" data-ratio="16:9" type="button">16:9</button>
+          <button class="ratio-button" data-ratio="9:16" type="button">9:16</button>
+        </div>
+        <p class="hint">現在は中央基準でトリミングします。位置を指で動かす機能は次版で追加予定です。</p>
+      </div>
+
+      <div class="group">
+        <label>出力解像度</label>
+        <div class="field-row">
+          <div class="field"><label for="widthInput">幅 (px)</label><input id="widthInput" type="number" min="1" max="12000"></div>
+          <div class="field"><label for="heightInput">高さ (px)</label><input id="heightInput" type="number" min="1" max="12000"></div>
+        </div>
+        <p class="hint">アスペクト比を選ぶと高さを自動計算します。必要なら数値は直接変更できます。</p>
+      </div>
+
+      <div class="group">
+        <label for="formatSelect">出力形式</label>
+        <select id="formatSelect">
+          <option value="image/jpeg">JPEG</option>
+          <option value="image/webp">WebP</option>
+          <option value="image/png">PNG</option>
+        </select>
+      </div>
+
+      <div class="group">
+        <label for="targetSizeInput">目標ファイルサイズ (MB)</label>
+        <input id="targetSizeInput" type="number" min="0.05" max="100" step="0.05" value="2">
+        <p class="hint">JPEG / WebP は容量以下になるよう画質を自動調整します。PNGは容量指定の対象外です。</p>
+      </div>
+
+      <button class="primary" id="processButton" type="button" disabled>画像を作成</button>
+      <div class="status" id="status"></div>
+      <div class="result" id="result"></div>
+      <a class="download" id="downloadLink">画像を保存</a>
+    </div>
+  </section>
+
+  <canvas id="canvas"></canvas>
 </div>
 
 <script>
+  const dropArea = document.getElementById('dropArea');
+  const fileInput = document.getElementById('fileInput');
+  const workspace = document.getElementById('workspace');
+  const previewImage = document.getElementById('previewImage');
+  const imageInfo = document.getElementById('imageInfo');
+  const ratioGrid = document.getElementById('ratioGrid');
+  const widthInput = document.getElementById('widthInput');
+  const heightInput = document.getElementById('heightInput');
+  const formatSelect = document.getElementById('formatSelect');
+  const targetSizeInput = document.getElementById('targetSizeInput');
+  const processButton = document.getElementById('processButton');
+  const status = document.getElementById('status');
+  const result = document.getElementById('result');
+  const downloadLink = document.getElementById('downloadLink');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
 
-const dropArea = document.getElementById("dropArea");
-const fileInput = document.getElementById("fileInput");
-const preview = document.getElementById("preview");
-const previewImage = document.getElementById("previewImage");
-const imageInfo = document.getElementById("imageInfo");
+  let sourceFile = null;
+  let sourceUrl = null;
+  let selectedRatio = 'original';
+  let lastDownloadUrl = null;
 
-fileInput.addEventListener("change", () => {
-  if (fileInput.files.length) {
-    loadImage(fileInput.files[0]);
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) loadImage(fileInput.files[0]);
+  });
+
+  ['dragenter', 'dragover'].forEach(type => dropArea.addEventListener(type, event => {
+    event.preventDefault();
+    dropArea.classList.add('dragover');
+  }));
+
+  ['dragleave', 'drop'].forEach(type => dropArea.addEventListener(type, event => {
+    event.preventDefault();
+    dropArea.classList.remove('dragover');
+  }));
+
+  dropArea.addEventListener('drop', event => {
+    const file = event.dataTransfer.files[0];
+    if (file) loadImage(file);
+  });
+
+  ratioGrid.addEventListener('click', event => {
+    const button = event.target.closest('.ratio-button');
+    if (!button) return;
+    document.querySelectorAll('.ratio-button').forEach(btn => btn.classList.remove('active'));
+    button.classList.add('active');
+    selectedRatio = button.dataset.ratio;
+    syncOutputSize();
+  });
+
+  widthInput.addEventListener('input', () => {
+    const ratio = getNumericRatio();
+    const width = Number(widthInput.value);
+    if (ratio && width > 0) heightInput.value = Math.max(1, Math.round(width / ratio));
+  });
+
+  formatSelect.addEventListener('change', () => {
+    targetSizeInput.disabled = formatSelect.value === 'image/png';
+  });
+
+  processButton.addEventListener('click', processImage);
+
+  function loadImage(file) {
+    if (!file.type.startsWith('image/')) {
+      alert('画像ファイルを選択してください');
+      return;
+    }
+
+    sourceFile = file;
+    if (sourceUrl) URL.revokeObjectURL(sourceUrl);
+    sourceUrl = URL.createObjectURL(file);
+    previewImage.src = sourceUrl;
+
+    previewImage.onload = () => {
+      const width = previewImage.naturalWidth;
+      const height = previewImage.naturalHeight;
+      imageInfo.textContent = `${file.name} / ${width} × ${height}px / ${formatBytes(file.size)} / ${file.type || '形式不明'}`;
+      workspace.style.display = 'grid';
+      processButton.disabled = false;
+      selectedRatio = 'original';
+      document.querySelectorAll('.ratio-button').forEach(btn => btn.classList.toggle('active', btn.dataset.ratio === 'original'));
+      syncOutputSize();
+      resetResult();
+    };
   }
-});
 
-dropArea.addEventListener("dragover", (event) => {
-  event.preventDefault();
-  dropArea.classList.add("dragover");
-});
-
-dropArea.addEventListener("dragleave", () => {
-  dropArea.classList.remove("dragover");
-});
-
-dropArea.addEventListener("drop", (event) => {
-  event.preventDefault();
-
-  dropArea.classList.remove("dragover");
-
-  const file = event.dataTransfer.files[0];
-
-  if (file) {
-    loadImage(file);
-  }
-});
-
-function loadImage(file) {
-
-  if (!file.type.startsWith("image/")) {
-    alert("画像ファイルを選択してください");
-    return;
+  function getNumericRatio() {
+    if (selectedRatio === 'original') {
+      return previewImage.naturalWidth / previewImage.naturalHeight;
+    }
+    const [w, h] = selectedRatio.split(':').map(Number);
+    return w / h;
   }
 
-  const url = URL.createObjectURL(file);
+  function syncOutputSize() {
+    if (!sourceFile) return;
+    const ratio = getNumericRatio();
+    const sourceW = previewImage.naturalWidth;
+    const sourceH = previewImage.naturalHeight;
+    let cropW = sourceW;
+    let cropH = sourceH;
+    if (sourceW / sourceH > ratio) cropW = Math.round(sourceH * ratio);
+    else cropH = Math.round(sourceW / ratio);
+    widthInput.value = cropW;
+    heightInput.value = cropH;
+  }
 
-  previewImage.onload = () => {
+  function getCropRect() {
+    const sourceW = previewImage.naturalWidth;
+    const sourceH = previewImage.naturalHeight;
+    const ratio = getNumericRatio();
+    let cropW = sourceW;
+    let cropH = sourceH;
+    if (sourceW / sourceH > ratio) cropW = sourceH * ratio;
+    else cropH = sourceW / ratio;
+    return {
+      sx: (sourceW - cropW) / 2,
+      sy: (sourceH - cropH) / 2,
+      sw: cropW,
+      sh: cropH
+    };
+  }
 
-    const width = previewImage.naturalWidth;
-    const height = previewImage.naturalHeight;
+  async function processImage() {
+    if (!sourceFile) return;
+    const outW = Math.round(Number(widthInput.value));
+    const outH = Math.round(Number(heightInput.value));
+    if (!outW || !outH || outW < 1 || outH < 1 || outW > 12000 || outH > 12000) {
+      alert('出力解像度は1〜12000pxの範囲で指定してください');
+      return;
+    }
 
-    const sizeMB =
-      (file.size / 1024 / 1024).toFixed(2);
+    processButton.disabled = true;
+    resetResult();
+    status.textContent = '画像を処理しています…';
 
-    imageInfo.textContent =
-      `${width} × ${height}px / ${sizeMB}MB / ${file.type}`;
+    try {
+      canvas.width = outW;
+      canvas.height = outH;
+      ctx.clearRect(0, 0, outW, outH);
+      const crop = getCropRect();
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(previewImage, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, outW, outH);
 
-    preview.style.display = "block";
-  };
+      const mime = formatSelect.value;
+      let blob;
+      let quality = 0.92;
 
-  previewImage.src = url;
-}
+      if (mime === 'image/png') {
+        blob = await canvasToBlob(mime);
+      } else {
+        const targetBytes = Math.max(1, Number(targetSizeInput.value || 2)) * 1024 * 1024;
+        const encoded = await encodeUnderTarget(mime, targetBytes);
+        blob = encoded.blob;
+        quality = encoded.quality;
+      }
 
+      if (!blob) throw new Error('画像の生成に失敗しました');
+
+      if (lastDownloadUrl) URL.revokeObjectURL(lastDownloadUrl);
+      lastDownloadUrl = URL.createObjectURL(blob);
+      downloadLink.href = lastDownloadUrl;
+      downloadLink.download = makeFileName(sourceFile.name, mime);
+      downloadLink.style.display = 'block';
+
+      const qualityText = mime === 'image/png' ? 'PNG（画質指定なし）' : `品質 約${Math.round(quality * 100)}%`;
+      result.innerHTML = `<strong>作成完了</strong>${outW} × ${outH}px / ${formatBytes(blob.size)}<br>${formatName(mime)} / ${qualityText}`;
+      result.style.display = 'block';
+      status.textContent = '';
+    } catch (error) {
+      console.error(error);
+      status.textContent = '処理に失敗しました。別の画像や小さい解像度でお試しください。';
+    } finally {
+      processButton.disabled = false;
+    }
+  }
+
+  async function encodeUnderTarget(mime, targetBytes) {
+    let low = 0.05;
+    let high = 0.95;
+    let best = null;
+    let smallest = null;
+
+    for (let i = 0; i < 9; i++) {
+      const quality = (low + high) / 2;
+      const blob = await canvasToBlob(mime, quality);
+      if (!blob) throw new Error('エンコードに失敗しました');
+      if (!smallest || blob.size < smallest.blob.size) smallest = { blob, quality };
+      if (blob.size <= targetBytes) {
+        best = { blob, quality };
+        low = quality;
+      } else {
+        high = quality;
+      }
+    }
+    return best || smallest;
+  }
+
+  function canvasToBlob(mime, quality) {
+    return new Promise(resolve => canvas.toBlob(resolve, mime, quality));
+  }
+
+  function makeFileName(name, mime) {
+    const base = name.replace(/\.[^.]+$/, '') || 'image';
+    const ext = mime === 'image/jpeg' ? 'jpg' : mime === 'image/webp' ? 'webp' : 'png';
+    return `${base}-fit.${ext}`;
+  }
+
+  function formatName(mime) {
+    return mime === 'image/jpeg' ? 'JPEG' : mime === 'image/webp' ? 'WebP' : 'PNG';
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  function resetResult() {
+    status.textContent = '';
+    result.style.display = 'none';
+    downloadLink.style.display = 'none';
+  }
 </script>
-
 </body>
 </html>

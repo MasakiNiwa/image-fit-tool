@@ -42,15 +42,79 @@
     .workspace { display: none; width: 100%; min-width: 0; margin-top: 20px; gap: 18px; grid-template-columns: minmax(0, 1fr); }
     .card { min-width: 0; background: #fff; border-radius: 18px; padding: 16px; box-shadow: 0 8px 26px rgba(0,0,0,.05); }
     .preview-card { min-width: 0; }
+    .preview-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .preview-heading h2 { margin: 0; font-size: 20px; }
+    .crop-help { margin: 4px 0 0; color: #666; font-size: 13px; line-height: 1.5; }
+    .secondary {
+      flex: 0 0 auto;
+      min-height: 44px;
+      border: 1px solid #ccd0d7;
+      border-radius: 10px;
+      padding: 8px 12px;
+      background: #fff;
+      color: #333;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .secondary:disabled { opacity: .45; cursor: not-allowed; }
     .preview-shell {
+      position: relative;
       min-height: 280px;
       display: grid;
       place-items: center;
       overflow: hidden;
       border-radius: 14px;
       background: #eceef2;
+      isolation: isolate;
+      user-select: none;
     }
-    #previewImage { display: block; max-width: 100%; max-height: 62vh; object-fit: contain; }
+    #previewImage {
+      display: block;
+      max-width: 100%;
+      max-height: 62vh;
+      object-fit: contain;
+      pointer-events: none;
+      -webkit-user-drag: none;
+    }
+    .crop-selection {
+      position: absolute;
+      z-index: 1;
+      display: none;
+      border: 2px solid #fff;
+      background-image:
+        linear-gradient(to right, transparent calc(33.333% - .5px), rgba(255,255,255,.72) 33.333%, transparent calc(33.333% + .5px)),
+        linear-gradient(to right, transparent calc(66.666% - .5px), rgba(255,255,255,.72) 66.666%, transparent calc(66.666% + .5px)),
+        linear-gradient(to bottom, transparent calc(33.333% - .5px), rgba(255,255,255,.72) 33.333%, transparent calc(33.333% + .5px)),
+        linear-gradient(to bottom, transparent calc(66.666% - .5px), rgba(255,255,255,.72) 66.666%, transparent calc(66.666% + .5px));
+      box-shadow: 0 0 0 9999px rgba(10, 15, 24, .58), 0 0 0 1px rgba(0,0,0,.32);
+      cursor: grab;
+      touch-action: none;
+    }
+    .crop-selection::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 38px;
+      height: 38px;
+      border: 2px solid rgba(255,255,255,.92);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 1px 5px rgba(0,0,0,.32);
+    }
+    .crop-selection:focus-visible { outline: 3px solid #76a7ff; outline-offset: -3px; }
+    .crop-selection.dragging { cursor: grabbing; }
+    .crop-selection.locked { cursor: default; touch-action: auto; }
+    .crop-selection.locked::after { display: none; }
+    .crop-meta { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-top: 10px; }
+    .crop-meta .info { min-width: 0; margin-top: 0; }
+    .crop-info { flex: 0 0 auto; color: #2f6f4e; font-size: 13px; font-weight: 700; text-align: right; }
     .info { margin-top: 12px; font-size: 14px; color: #555; overflow-wrap: anywhere; }
     .settings h2 { margin: 0 0 14px; font-size: 20px; }
     .group { margin-bottom: 18px; }
@@ -89,7 +153,11 @@
       }
       .drop-area { margin-top: 18px; padding: 30px 12px; }
       .card { padding: 12px; border-radius: 16px; }
+      .preview-heading { align-items: stretch; }
+      .preview-heading .secondary { padding-inline: 10px; }
       .preview-shell { min-height: 200px; }
+      .crop-meta { display: block; }
+      .crop-info { margin-top: 5px; text-align: left; }
     }
   </style>
 </head>
@@ -107,14 +175,14 @@
 
   <section class="workspace" id="workspace">
     <div class="card preview-card">
-      <div class="preview-shell"><img id="previewImage" alt="選択画像のプレビュー"></div>
-      <div class="info" id="imageInfo"></div>
-    </div>
-
-    <div class="card settings">
-      <h2>出力設定</h2>
-
-      <div class="group">
+      <div class="preview-heading">
+        <div>
+          <h2>トリミング</h2>
+          <p class="crop-help" id="cropHelp">アスペクト比を選ぶと切り抜き枠が表示されます。</p>
+        </div>
+        <button class="secondary" id="resetCropButton" type="button" disabled>中央に戻す</button>
+      </div>
+      <div class="group crop-ratio-group">
         <label>アスペクト比</label>
         <div class="ratio-grid" id="ratioGrid">
           <button class="ratio-button active" data-ratio="original" type="button">元画像</button>
@@ -126,8 +194,20 @@
           <button class="ratio-button" data-ratio="16:9" type="button">16:9</button>
           <button class="ratio-button" data-ratio="9:16" type="button">9:16</button>
         </div>
-        <p class="hint">現在は中央基準でトリミングします。位置を指で動かす機能は次版で追加予定です。</p>
+        <p class="hint">比率を選び、白い枠を指やマウスで動かして位置を調整できます。</p>
       </div>
+      <div class="preview-shell" id="previewShell">
+        <img id="previewImage" alt="選択画像のプレビュー">
+        <div class="crop-selection" id="cropSelection" role="application" aria-label="切り抜き範囲。ドラッグまたは矢印キーで移動できます。"></div>
+      </div>
+      <div class="crop-meta">
+        <div class="info" id="imageInfo"></div>
+        <div class="crop-info" id="cropInfo"></div>
+      </div>
+    </div>
+
+    <div class="card settings">
+      <h2>出力設定</h2>
 
       <div class="group">
         <label>出力解像度</label>
@@ -167,7 +247,12 @@
   const dropArea = document.getElementById('dropArea');
   const fileInput = document.getElementById('fileInput');
   const workspace = document.getElementById('workspace');
+  const previewShell = document.getElementById('previewShell');
   const previewImage = document.getElementById('previewImage');
+  const cropSelection = document.getElementById('cropSelection');
+  const cropHelp = document.getElementById('cropHelp');
+  const cropInfo = document.getElementById('cropInfo');
+  const resetCropButton = document.getElementById('resetCropButton');
   const imageInfo = document.getElementById('imageInfo');
   const ratioGrid = document.getElementById('ratioGrid');
   const widthInput = document.getElementById('widthInput');
@@ -184,6 +269,8 @@
   let sourceFile = null;
   let sourceUrl = null;
   let selectedRatio = 'original';
+  let cropPosition = { x: .5, y: .5 };
+  let dragState = null;
   let lastDownloadUrl = null;
 
   fileInput.addEventListener('change', () => {
@@ -211,7 +298,10 @@
     document.querySelectorAll('.ratio-button').forEach(btn => btn.classList.remove('active'));
     button.classList.add('active');
     selectedRatio = button.dataset.ratio;
+    resetCropPosition();
     syncOutputSize();
+    updateCropUI();
+    resetResult();
   });
 
   widthInput.addEventListener('input', () => {
@@ -220,11 +310,33 @@
     if (ratio && width > 0) heightInput.value = Math.max(1, Math.round(width / ratio));
   });
 
+  heightInput.addEventListener('input', () => {
+    const ratio = getNumericRatio();
+    const height = Number(heightInput.value);
+    if (ratio && height > 0) widthInput.value = Math.max(1, Math.round(height * ratio));
+  });
+
   formatSelect.addEventListener('change', () => {
     targetSizeInput.disabled = formatSelect.value === 'image/png';
   });
 
   processButton.addEventListener('click', processImage);
+  resetCropButton.addEventListener('click', () => {
+    resetCropPosition();
+    updateCropUI();
+    resetResult();
+  });
+
+  cropSelection.addEventListener('pointerdown', startCropDrag);
+  cropSelection.addEventListener('pointermove', moveCropDrag);
+  cropSelection.addEventListener('pointerup', endCropDrag);
+  cropSelection.addEventListener('pointercancel', endCropDrag);
+  cropSelection.addEventListener('keydown', moveCropWithKeyboard);
+  window.addEventListener('resize', updateCropUI);
+
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(updateCropUI).observe(previewShell);
+  }
 
   function loadImage(file) {
     if (!file.type.startsWith('image/')) {
@@ -245,8 +357,10 @@
       processButton.disabled = false;
       selectedRatio = 'original';
       document.querySelectorAll('.ratio-button').forEach(btn => btn.classList.toggle('active', btn.dataset.ratio === 'original'));
+      resetCropPosition();
       syncOutputSize();
       resetResult();
+      requestAnimationFrame(updateCropUI);
     };
   }
 
@@ -279,12 +393,116 @@
     let cropH = sourceH;
     if (sourceW / sourceH > ratio) cropW = sourceH * ratio;
     else cropH = sourceW / ratio;
+    const maxX = Math.max(0, sourceW - cropW);
+    const maxY = Math.max(0, sourceH - cropH);
     return {
-      sx: (sourceW - cropW) / 2,
-      sy: (sourceH - cropH) / 2,
+      sx: maxX * clamp(cropPosition.x, 0, 1),
+      sy: maxY * clamp(cropPosition.y, 0, 1),
       sw: cropW,
       sh: cropH
     };
+  }
+
+  function resetCropPosition() {
+    cropPosition = { x: .5, y: .5 };
+  }
+
+  function updateCropUI() {
+    if (!sourceFile || !previewImage.complete || !previewImage.naturalWidth) {
+      cropSelection.style.display = 'none';
+      cropInfo.textContent = '';
+      return;
+    }
+
+    const shellRect = previewShell.getBoundingClientRect();
+    const imageRect = previewImage.getBoundingClientRect();
+    if (!imageRect.width || !imageRect.height) return;
+
+    const crop = getCropRect();
+    const scaleX = imageRect.width / previewImage.naturalWidth;
+    const scaleY = imageRect.height / previewImage.naturalHeight;
+    cropSelection.style.display = 'block';
+    cropSelection.style.left = `${imageRect.left - shellRect.left + crop.sx * scaleX}px`;
+    cropSelection.style.top = `${imageRect.top - shellRect.top + crop.sy * scaleY}px`;
+    cropSelection.style.width = `${crop.sw * scaleX}px`;
+    cropSelection.style.height = `${crop.sh * scaleY}px`;
+
+    const movable = isCropMovable(crop);
+    const centered = Math.abs(cropPosition.x - .5) < .001 && Math.abs(cropPosition.y - .5) < .001;
+    cropSelection.classList.toggle('locked', !movable);
+    cropSelection.tabIndex = movable ? 0 : -1;
+    cropSelection.setAttribute('aria-disabled', String(!movable));
+    resetCropButton.disabled = !movable || centered;
+    cropHelp.textContent = movable
+      ? '白い枠を指やマウスでドラッグして、残したい位置へ動かせます。'
+      : '元画像全体を使用します。別のアスペクト比を選ぶと位置を調整できます。';
+    cropInfo.textContent = `使用範囲 ${Math.round(crop.sw)} × ${Math.round(crop.sh)}px`;
+  }
+
+  function isCropMovable(crop = getCropRect()) {
+    return previewImage.naturalWidth - crop.sw > .5 || previewImage.naturalHeight - crop.sh > .5;
+  }
+
+  function startCropDrag(event) {
+    const crop = getCropRect();
+    if (!isCropMovable(crop)) return;
+
+    const imageRect = previewImage.getBoundingClientRect();
+    if (!imageRect.width || !imageRect.height) return;
+    event.preventDefault();
+    dragState = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startSx: crop.sx,
+      startSy: crop.sy,
+      cropW: crop.sw,
+      cropH: crop.sh,
+      sourcePerPixelX: previewImage.naturalWidth / imageRect.width,
+      sourcePerPixelY: previewImage.naturalHeight / imageRect.height
+    };
+    cropSelection.setPointerCapture(event.pointerId);
+    cropSelection.classList.add('dragging');
+  }
+
+  function moveCropDrag(event) {
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
+    event.preventDefault();
+    const maxX = Math.max(0, previewImage.naturalWidth - dragState.cropW);
+    const maxY = Math.max(0, previewImage.naturalHeight - dragState.cropH);
+    const nextX = clamp(dragState.startSx + (event.clientX - dragState.startX) * dragState.sourcePerPixelX, 0, maxX);
+    const nextY = clamp(dragState.startSy + (event.clientY - dragState.startY) * dragState.sourcePerPixelY, 0, maxY);
+    cropPosition.x = maxX ? nextX / maxX : .5;
+    cropPosition.y = maxY ? nextY / maxY : .5;
+    updateCropUI();
+    resetResult();
+  }
+
+  function endCropDrag(event) {
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
+    if (cropSelection.hasPointerCapture(event.pointerId)) cropSelection.releasePointerCapture(event.pointerId);
+    dragState = null;
+    cropSelection.classList.remove('dragging');
+  }
+
+  function moveCropWithKeyboard(event) {
+    const direction = {
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0],
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1]
+    }[event.key];
+    if (!direction || !isCropMovable()) return;
+    event.preventDefault();
+    const step = event.shiftKey ? .1 : .02;
+    cropPosition.x = clamp(cropPosition.x + direction[0] * step, 0, 1);
+    cropPosition.y = clamp(cropPosition.y + direction[1] * step, 0, 1);
+    updateCropUI();
+    resetResult();
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
   }
 
   async function processImage() {
@@ -316,7 +534,7 @@
       if (mime === 'image/png') {
         blob = await canvasToBlob(mime);
       } else {
-        const targetBytes = Math.max(1, Number(targetSizeInput.value || 2)) * 1024 * 1024;
+        const targetBytes = Math.max(.05, Number(targetSizeInput.value) || 2) * 1024 * 1024;
         const encoded = await encodeUnderTarget(mime, targetBytes);
         blob = encoded.blob;
         quality = encoded.quality;

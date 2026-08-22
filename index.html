@@ -134,8 +134,50 @@
     }
     .crop-selection:focus-visible { outline: 3px solid #76a7ff; outline-offset: -3px; }
     .crop-selection.dragging { cursor: grabbing; }
-    .crop-selection.locked { cursor: default; touch-action: auto; }
-    .crop-selection.locked::after { display: none; }
+    .crop-selection.resizing { cursor: nwse-resize; }
+    .crop-selection.profile-safe-area::before {
+      content: "";
+      position: absolute;
+      inset: 3px;
+      border: 2px dashed rgba(255, 226, 102, .96);
+      border-radius: 50%;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.6));
+      pointer-events: none;
+    }
+    .crop-handle {
+      position: absolute;
+      z-index: 2;
+      width: 34px;
+      height: 34px;
+      touch-action: none;
+    }
+    .crop-handle::after {
+      content: "";
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-color: #fff;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.65));
+    }
+    .crop-handle.nw { top: -17px; left: -17px; cursor: nwse-resize; }
+    .crop-handle.ne { top: -17px; right: -17px; cursor: nesw-resize; }
+    .crop-handle.sw { bottom: -17px; left: -17px; cursor: nesw-resize; }
+    .crop-handle.se { right: -17px; bottom: -17px; cursor: nwse-resize; }
+    .crop-handle.nw::after { right: 5px; bottom: 5px; border-top: 3px solid #fff; border-left: 3px solid #fff; }
+    .crop-handle.ne::after { bottom: 5px; left: 5px; border-top: 3px solid #fff; border-right: 3px solid #fff; }
+    .crop-handle.sw::after { top: 5px; right: 5px; border-bottom: 3px solid #fff; border-left: 3px solid #fff; }
+    .crop-handle.se::after { top: 5px; left: 5px; border-right: 3px solid #fff; border-bottom: 3px solid #fff; }
+    .crop-scale-control {
+      padding: 12px;
+      border: 1px solid #dfe4ea;
+      border-radius: 12px;
+      background: #f7f9fb;
+    }
+    .crop-scale-control[hidden] { display: none; }
+    .range-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .range-heading label { font-size: 14px; font-weight: 700; }
+    .range-heading output { color: #2f6f4e; font-size: 14px; font-weight: 800; }
+    input[type="range"] { width: 100%; min-height: 36px; margin: 6px 0 0; accent-color: #2f6f4e; }
     .crop-meta { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-top: 10px; }
     .crop-meta .info { min-width: 0; margin-top: 0; }
     .crop-info { flex: 0 0 auto; color: #2f6f4e; font-size: 13px; font-weight: 700; text-align: right; }
@@ -219,7 +261,7 @@
           <h2>トリミング</h2>
           <p class="crop-help" id="cropHelp">アスペクト比を選ぶと切り抜き枠が表示されます。</p>
         </div>
-        <button class="secondary" id="resetCropButton" type="button" disabled>中央に戻す</button>
+        <button class="secondary" id="resetCropButton" type="button" title="中央位置と選択範囲を初期状態へ戻す" disabled>リセット</button>
       </div>
       <div class="group preset-group">
         <label for="purposePreset">用途プリセット</label>
@@ -278,10 +320,23 @@
         </div>
         <p class="hint" id="fitModeHint">指定比率の枠いっぱいになるようトリミングします。</p>
       </div>
+      <div class="group crop-scale-control" id="cropScaleControl" hidden>
+        <div class="range-heading">
+          <label for="cropScaleInput">選択範囲の大きさ</label>
+          <output id="cropScaleValue" for="cropScaleInput">100%</output>
+        </div>
+        <input id="cropScaleInput" type="range" min="10" max="100" step="1" value="100">
+        <p class="hint">小さくするほど画像を大きく切り抜きます。枠の四隅や2本指のピンチでも調整できます。</p>
+      </div>
       <div class="preview-shell" id="previewShell">
         <img id="previewImage" alt="選択画像のプレビュー">
         <canvas class="contain-preview" id="containPreviewCanvas" aria-label="透明余白を含む出力プレビュー"></canvas>
-        <div class="crop-selection" id="cropSelection" role="application" aria-label="切り抜き範囲。ドラッグまたは矢印キーで移動できます。"></div>
+        <div class="crop-selection" id="cropSelection" role="application" aria-label="切り抜き範囲。1本指または矢印キーで移動、2本指または四隅で大きさを変更できます。">
+          <span class="crop-handle nw" data-handle="nw" aria-hidden="true"></span>
+          <span class="crop-handle ne" data-handle="ne" aria-hidden="true"></span>
+          <span class="crop-handle sw" data-handle="sw" aria-hidden="true"></span>
+          <span class="crop-handle se" data-handle="se" aria-hidden="true"></span>
+        </div>
       </div>
       <div class="crop-meta">
         <div class="info" id="imageInfo"></div>
@@ -348,6 +403,9 @@
   const paddingField = document.getElementById('paddingField');
   const paddingInput = document.getElementById('paddingInput');
   const fitModeHint = document.getElementById('fitModeHint');
+  const cropScaleControl = document.getElementById('cropScaleControl');
+  const cropScaleInput = document.getElementById('cropScaleInput');
+  const cropScaleValue = document.getElementById('cropScaleValue');
   const containPreviewCanvas = document.getElementById('containPreviewCanvas');
   const containPreviewCtx = containPreviewCanvas.getContext('2d');
   const widthInput = document.getElementById('widthInput');
@@ -367,13 +425,13 @@
     'generic-profile': {
       name: '汎用プロフィール',
       ratio: '1:1', width: 1024, height: 1024, mime: 'image/jpeg', targetMB: 2,
-      exactSize: true, fitMode: 'cover', padding: 0,
+      exactSize: true, fitMode: 'cover', padding: 0, circularGuide: true,
       note: '丸型表示にも使いやすい汎用正方形です。主要部分を中央寄りに配置してください。'
     },
     'x-profile': {
       name: 'X プロフィール',
       ratio: '1:1', width: 400, height: 400, mime: 'image/jpeg', targetMB: 2,
-      maxMB: 2, exactSize: true, fitMode: 'cover', padding: 0, source: X_PROFILE_GUIDELINE_URL,
+      maxMB: 2, exactSize: true, fitMode: 'cover', padding: 0, circularGuide: true, source: X_PROFILE_GUIDELINE_URL,
       note: 'X公式の推奨400 × 400px、プロフィール画像の上限2MBに合わせます。'
     },
     'line-sticker': {
@@ -408,7 +466,10 @@
   let fitMode = 'cover';
   let activePresetKey = 'manual';
   let cropPosition = { x: .5, y: .5 };
-  let dragState = null;
+  const MIN_CROP_SCALE = .1;
+  let cropScale = 1;
+  const activeCropPointers = new Map();
+  let cropGesture = null;
   let lastDownloadUrl = null;
 
   fileInput.addEventListener('change', () => {
@@ -471,6 +532,14 @@
     resetResult();
   });
 
+  cropScaleInput.addEventListener('input', () => {
+    if (!sourceFile || fitMode !== 'cover') return;
+    const crop = getCropRect();
+    setCropFromCenter(crop.sx + crop.sw / 2, crop.sy + crop.sh / 2, Number(cropScaleInput.value) / 100);
+    updateCropUI();
+    resetResult();
+  });
+
   widthInput.addEventListener('input', () => {
     markSettingsCustomized();
     const ratio = getNumericRatio();
@@ -502,11 +571,13 @@
     resetResult();
   });
 
-  cropSelection.addEventListener('pointerdown', startCropDrag);
-  cropSelection.addEventListener('pointermove', moveCropDrag);
-  cropSelection.addEventListener('pointerup', endCropDrag);
-  cropSelection.addEventListener('pointercancel', endCropDrag);
+  cropSelection.addEventListener('pointerdown', startCropGesture);
+  cropSelection.addEventListener('pointermove', moveCropGesture);
+  cropSelection.addEventListener('pointerup', endCropGesture);
+  cropSelection.addEventListener('pointercancel', endCropGesture);
+  cropSelection.addEventListener('lostpointercapture', endCropGesture);
   cropSelection.addEventListener('keydown', moveCropWithKeyboard);
+  window.addEventListener('blur', cancelCropGesture);
   window.addEventListener('resize', updateCropUI);
 
   if ('ResizeObserver' in window) {
@@ -604,9 +675,10 @@
   function updateFitModeControls() {
     fitModeSelect.value = fitMode;
     paddingField.hidden = fitMode !== 'contain';
+    cropScaleControl.hidden = fitMode !== 'cover';
     fitModeHint.textContent = fitMode === 'contain'
       ? '画像を切らずに中央へ収めます。PNG / WebPの余白は透明、JPEGの余白は白になります。'
-      : '指定比率の枠いっぱいになるようトリミングします。';
+      : '白い枠の内側だけを保存し、暗くなった外側は保存しません。';
   }
 
   function updateTargetSizeState() {
@@ -637,7 +709,7 @@
     heightInput.value = cropH;
   }
 
-  function getCropRect() {
+  function getBaseCropSize() {
     const sourceW = previewImage.naturalWidth;
     const sourceH = previewImage.naturalHeight;
     const ratio = getNumericRatio();
@@ -645,6 +717,21 @@
     let cropH = sourceH;
     if (sourceW / sourceH > ratio) cropW = sourceH * ratio;
     else cropH = sourceW / ratio;
+    return { width: cropW, height: cropH };
+  }
+
+  function getCropSize(scale = cropScale) {
+    const base = getBaseCropSize();
+    const safeScale = clamp(scale, MIN_CROP_SCALE, 1);
+    return { width: base.width * safeScale, height: base.height * safeScale };
+  }
+
+  function getCropRect() {
+    const sourceW = previewImage.naturalWidth;
+    const sourceH = previewImage.naturalHeight;
+    const size = getCropSize();
+    const cropW = size.width;
+    const cropH = size.height;
     const maxX = Math.max(0, sourceW - cropW);
     const maxY = Math.max(0, sourceH - cropH);
     return {
@@ -657,6 +744,29 @@
 
   function resetCropPosition() {
     cropPosition = { x: .5, y: .5 };
+    cropScale = 1;
+    updateCropScaleControl();
+  }
+
+  function updateCropScaleControl() {
+    const percent = Math.round(cropScale * 100);
+    cropScaleInput.value = String(percent);
+    cropScaleValue.value = `${percent}%`;
+    cropScaleValue.textContent = `${percent}%`;
+  }
+
+  function setCropPositionFromRect(sx, sy, cropW, cropH) {
+    const maxX = Math.max(0, previewImage.naturalWidth - cropW);
+    const maxY = Math.max(0, previewImage.naturalHeight - cropH);
+    cropPosition.x = maxX ? clamp(sx, 0, maxX) / maxX : .5;
+    cropPosition.y = maxY ? clamp(sy, 0, maxY) / maxY : .5;
+  }
+
+  function setCropFromCenter(centerX, centerY, scale) {
+    cropScale = clamp(scale, MIN_CROP_SCALE, 1);
+    const size = getCropSize(cropScale);
+    setCropPositionFromRect(centerX - size.width / 2, centerY - size.height / 2, size.width, size.height);
+    updateCropScaleControl();
   }
 
   function updateCropUI() {
@@ -671,6 +781,7 @@
     if (fitMode === 'contain') {
       previewImage.style.display = 'none';
       cropSelection.style.display = 'none';
+      cropSelection.classList.remove('profile-safe-area');
       cropSelection.tabIndex = -1;
       containPreviewCanvas.style.display = 'block';
       resetCropButton.disabled = true;
@@ -698,16 +809,18 @@
     cropSelection.style.width = `${crop.sw * scaleX}px`;
     cropSelection.style.height = `${crop.sh * scaleY}px`;
 
-    const movable = isCropMovable(crop);
     const centered = Math.abs(cropPosition.x - .5) < .001 && Math.abs(cropPosition.y - .5) < .001;
-    cropSelection.classList.toggle('locked', !movable);
-    cropSelection.tabIndex = movable ? 0 : -1;
-    cropSelection.setAttribute('aria-disabled', String(!movable));
-    resetCropButton.disabled = !movable || centered;
-    cropHelp.textContent = movable
-      ? '白い枠を指やマウスでドラッグして、残したい位置へ動かせます。'
-      : '元画像全体を使用します。別のアスペクト比を選ぶと位置を調整できます。';
-    cropInfo.textContent = `使用範囲 ${Math.round(crop.sw)} × ${Math.round(crop.sh)}px`;
+    const initialSize = Math.abs(cropScale - 1) < .001;
+    const profileGuide = Boolean(PRESETS[activePresetKey]?.circularGuide);
+    cropSelection.classList.toggle('profile-safe-area', profileGuide);
+    cropSelection.tabIndex = 0;
+    cropSelection.setAttribute('aria-disabled', 'false');
+    resetCropButton.disabled = centered && initialSize;
+    cropHelp.textContent = profileGuide
+      ? '枠内だけを保存します。1本指で移動、2本指・四隅で縮小できます。黄色の円はプロフィール表示の目安です。'
+      : '枠内だけを保存します。1本指で移動、2本指・四隅で大きさを調整できます。';
+    cropInfo.textContent = `使用範囲 ${Math.round(crop.sw)} × ${Math.round(crop.sh)}px / ${Math.round(cropScale * 100)}%`;
+    updateCropScaleControl();
   }
 
   function getOutputSize() {
@@ -780,14 +893,40 @@
     return previewImage.naturalWidth - crop.sw > .5 || previewImage.naturalHeight - crop.sh > .5;
   }
 
-  function startCropDrag(event) {
-    const crop = getCropRect();
-    if (!isCropMovable(crop)) return;
-
+  function startCropGesture(event) {
+    if (fitMode !== 'cover' || activeCropPointers.size >= 2) return;
     const imageRect = previewImage.getBoundingClientRect();
     if (!imageRect.width || !imageRect.height) return;
+
     event.preventDefault();
-    dragState = {
+    activeCropPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    cropSelection.setPointerCapture(event.pointerId);
+
+    if (activeCropPointers.size === 2) {
+      startPinchGesture(imageRect);
+      return;
+    }
+
+    const crop = getCropRect();
+    const handle = event.target.closest('.crop-handle')?.dataset.handle;
+    if (handle) {
+      const isLeft = handle.endsWith('w');
+      const isTop = handle.startsWith('n');
+      cropGesture = {
+        type: 'resize',
+        pointerId: event.pointerId,
+        anchorX: isLeft ? crop.sx + crop.sw : crop.sx,
+        anchorY: isTop ? crop.sy + crop.sh : crop.sy,
+        signX: isLeft ? -1 : 1,
+        signY: isTop ? -1 : 1,
+        imageRect
+      };
+      updateCropGestureClasses();
+      return;
+    }
+
+    cropGesture = {
+      type: 'move',
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
@@ -798,31 +937,138 @@
       sourcePerPixelX: previewImage.naturalWidth / imageRect.width,
       sourcePerPixelY: previewImage.naturalHeight / imageRect.height
     };
-    cropSelection.setPointerCapture(event.pointerId);
-    cropSelection.classList.add('dragging');
+    updateCropGestureClasses();
   }
 
-  function moveCropDrag(event) {
-    if (!dragState || event.pointerId !== dragState.pointerId) return;
+  function startPinchGesture(imageRect) {
+    const points = Array.from(activeCropPointers.values());
+    const crop = getCropRect();
+    cropGesture = {
+      type: 'pinch',
+      startDistance: Math.max(1, pointerDistance(points[0], points[1])),
+      startMidpoint: pointerMidpoint(points[0], points[1]),
+      startScale: cropScale,
+      startCenterX: crop.sx + crop.sw / 2,
+      startCenterY: crop.sy + crop.sh / 2,
+      sourcePerPixelX: previewImage.naturalWidth / imageRect.width,
+      sourcePerPixelY: previewImage.naturalHeight / imageRect.height
+    };
+    updateCropGestureClasses();
+  }
+
+  function moveCropGesture(event) {
+    if (!activeCropPointers.has(event.pointerId) || !cropGesture) return;
     event.preventDefault();
-    const maxX = Math.max(0, previewImage.naturalWidth - dragState.cropW);
-    const maxY = Math.max(0, previewImage.naturalHeight - dragState.cropH);
-    const nextX = clamp(dragState.startSx + (event.clientX - dragState.startX) * dragState.sourcePerPixelX, 0, maxX);
-    const nextY = clamp(dragState.startSy + (event.clientY - dragState.startY) * dragState.sourcePerPixelY, 0, maxY);
-    cropPosition.x = maxX ? nextX / maxX : .5;
-    cropPosition.y = maxY ? nextY / maxY : .5;
+    activeCropPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (cropGesture.type === 'pinch' && activeCropPointers.size >= 2) {
+      const points = Array.from(activeCropPointers.values());
+      const distance = Math.max(1, pointerDistance(points[0], points[1]));
+      const midpoint = pointerMidpoint(points[0], points[1]);
+      const nextScale = cropGesture.startScale * distance / cropGesture.startDistance;
+      const centerX = cropGesture.startCenterX + (midpoint.x - cropGesture.startMidpoint.x) * cropGesture.sourcePerPixelX;
+      const centerY = cropGesture.startCenterY + (midpoint.y - cropGesture.startMidpoint.y) * cropGesture.sourcePerPixelY;
+      setCropFromCenter(centerX, centerY, nextScale);
+    } else if (cropGesture.type === 'move' && event.pointerId === cropGesture.pointerId) {
+      const nextX = cropGesture.startSx + (event.clientX - cropGesture.startX) * cropGesture.sourcePerPixelX;
+      const nextY = cropGesture.startSy + (event.clientY - cropGesture.startY) * cropGesture.sourcePerPixelY;
+      setCropPositionFromRect(nextX, nextY, cropGesture.cropW, cropGesture.cropH);
+    } else if (cropGesture.type === 'resize' && event.pointerId === cropGesture.pointerId) {
+      resizeCropFromHandle(event.clientX, event.clientY, cropGesture);
+    }
+
     updateCropUI();
     resetResult();
   }
 
-  function endCropDrag(event) {
-    if (!dragState || event.pointerId !== dragState.pointerId) return;
+  function resizeCropFromHandle(clientX, clientY, gesture) {
+    const point = clientToSourcePoint(clientX, clientY, gesture.imageRect);
+    const base = getBaseCropSize();
+    const rawW = Math.max(0, (point.x - gesture.anchorX) * gesture.signX);
+    const rawH = Math.max(0, (point.y - gesture.anchorY) * gesture.signY);
+    const desiredW = (rawW + rawH * getNumericRatio()) / 2;
+    const widthLimit = gesture.signX < 0 ? gesture.anchorX : previewImage.naturalWidth - gesture.anchorX;
+    const heightLimit = gesture.signY < 0 ? gesture.anchorY : previewImage.naturalHeight - gesture.anchorY;
+    const maxScale = Math.min(1, widthLimit / base.width, heightLimit / base.height);
+    cropScale = clamp(desiredW / base.width, MIN_CROP_SCALE, Math.max(MIN_CROP_SCALE, maxScale));
+
+    const size = getCropSize(cropScale);
+    const sx = gesture.signX < 0 ? gesture.anchorX - size.width : gesture.anchorX;
+    const sy = gesture.signY < 0 ? gesture.anchorY - size.height : gesture.anchorY;
+    setCropPositionFromRect(sx, sy, size.width, size.height);
+    updateCropScaleControl();
+  }
+
+  function clientToSourcePoint(clientX, clientY, imageRect) {
+    return {
+      x: clamp((clientX - imageRect.left) * previewImage.naturalWidth / imageRect.width, 0, previewImage.naturalWidth),
+      y: clamp((clientY - imageRect.top) * previewImage.naturalHeight / imageRect.height, 0, previewImage.naturalHeight)
+    };
+  }
+
+  function pointerDistance(a, b) {
+    return Math.hypot(b.x - a.x, b.y - a.y);
+  }
+
+  function pointerMidpoint(a, b) {
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+
+  function endCropGesture(event) {
+    if (!activeCropPointers.has(event.pointerId)) return;
+    activeCropPointers.delete(event.pointerId);
     if (cropSelection.hasPointerCapture(event.pointerId)) cropSelection.releasePointerCapture(event.pointerId);
-    dragState = null;
-    cropSelection.classList.remove('dragging');
+
+    if (cropGesture?.type === 'pinch' && activeCropPointers.size === 1) {
+      const [pointerId, point] = activeCropPointers.entries().next().value;
+      const crop = getCropRect();
+      const imageRect = previewImage.getBoundingClientRect();
+      cropGesture = {
+        type: 'move',
+        pointerId,
+        startX: point.x,
+        startY: point.y,
+        startSx: crop.sx,
+        startSy: crop.sy,
+        cropW: crop.sw,
+        cropH: crop.sh,
+        sourcePerPixelX: previewImage.naturalWidth / imageRect.width,
+        sourcePerPixelY: previewImage.naturalHeight / imageRect.height
+      };
+    } else if (activeCropPointers.size === 0 || cropGesture?.pointerId === event.pointerId) {
+      cropGesture = null;
+    }
+    updateCropGestureClasses();
+  }
+
+  function cancelCropGesture() {
+    activeCropPointers.clear();
+    cropGesture = null;
+    updateCropGestureClasses();
+  }
+
+  function updateCropGestureClasses() {
+    cropSelection.classList.toggle('dragging', cropGesture?.type === 'move');
+    cropSelection.classList.toggle('resizing', cropGesture?.type === 'resize' || cropGesture?.type === 'pinch');
   }
 
   function moveCropWithKeyboard(event) {
+    if (event.key === '+' || event.key === '=') {
+      event.preventDefault();
+      const crop = getCropRect();
+      setCropFromCenter(crop.sx + crop.sw / 2, crop.sy + crop.sh / 2, cropScale - .05);
+      updateCropUI();
+      resetResult();
+      return;
+    }
+    if (event.key === '-' || event.key === '_') {
+      event.preventDefault();
+      const crop = getCropRect();
+      setCropFromCenter(crop.sx + crop.sw / 2, crop.sy + crop.sh / 2, cropScale + .05);
+      updateCropUI();
+      resetResult();
+      return;
+    }
     const direction = {
       ArrowLeft: [-1, 0],
       ArrowRight: [1, 0],
@@ -1017,6 +1263,10 @@
     result.style.display = 'none';
     downloadLink.style.display = 'none';
   }
+
+  updateFitModeControls();
+  updateCropScaleControl();
+  updateTargetSizeState();
 </script>
 </body>
 </html>

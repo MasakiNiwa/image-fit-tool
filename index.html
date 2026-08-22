@@ -4,167 +4,1380 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Image Fit Tool</title>
-
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, sans-serif;
+      min-width: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #f5f5f7;
       color: #222;
+      overflow-wrap: anywhere;
     }
-
+    button, input, select { font: inherit; }
     .app {
-      width: min(92%, 900px);
+      width: min(100%, 1100px);
       margin: 0 auto;
-      padding: 32px 0;
+      padding: 24px max(16px, env(safe-area-inset-right)) max(48px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
     }
-
-    h1 {
-      margin-bottom: 4px;
-    }
-
-    .description {
-      margin-top: 0;
-      color: #666;
-    }
-
+    h1 { margin: 0 0 6px; font-size: clamp(28px, 6vw, 42px); }
+    .description { margin: 0; color: #666; line-height: 1.55; }
+    .privacy { margin: 10px 0 0; color: #2f6f4e; font-size: 14px; line-height: 1.55; }
+    .drop-compact { display: none; }
     .drop-area {
+      display: block;
+      width: 100%;
+      min-width: 0;
       margin-top: 24px;
-      padding: 48px 20px;
+      padding: 40px 20px;
       border: 2px dashed #999;
       border-radius: 18px;
-      background: white;
+      background: #fff;
       text-align: center;
+      line-height: 1.7;
       cursor: pointer;
     }
-
-    .drop-area.dragover {
-      background: #eef4ff;
-      border-color: #3367d6;
+    .drop-area.dragover { background: #eef4ff; border-color: #3367d6; }
+    input[type="file"] { display: none; }
+    .workspace { display: none; width: 100%; min-width: 0; margin-top: 20px; gap: 18px; grid-template-columns: minmax(0, 1fr); }
+    .card { min-width: 0; background: #fff; border-radius: 18px; padding: 16px; box-shadow: 0 8px 26px rgba(0,0,0,.05); }
+    .preview-card { min-width: 0; }
+    .preview-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
     }
-
-    input[type="file"] {
-      display: none;
+    .preview-heading h2 { margin: 0; font-size: 20px; }
+    .crop-help { margin: 4px 0 0; color: #666; font-size: 13px; line-height: 1.5; }
+    .preset-group {
+      padding: 12px;
+      border: 1px solid #dfe4ea;
+      border-radius: 12px;
+      background: #f7f9fb;
     }
-
-    .preview {
-      display: none;
-      margin-top: 24px;
-      padding: 16px;
-      background: white;
-      border-radius: 18px;
+    .preset-note { margin: 8px 0 0; color: #555; font-size: 12px; line-height: 1.55; }
+    .preset-source { display: inline-block; margin-top: 5px; color: #245f9e; font-size: 12px; }
+    .preset-source[hidden] { display: none; }
+    .secondary {
+      flex: 0 0 auto;
+      min-height: 44px;
+      border: 1px solid #ccd0d7;
+      border-radius: 10px;
+      padding: 8px 12px;
+      background: #fff;
+      color: #333;
+      font-weight: 700;
+      cursor: pointer;
     }
-
-    .preview img {
+    .secondary:disabled { opacity: .45; cursor: not-allowed; }
+    .preview-shell {
+      position: relative;
+      min-height: 280px;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      border-radius: 14px;
+      background: #eceef2;
+      isolation: isolate;
+      user-select: none;
+    }
+    #previewImage {
       display: block;
       max-width: 100%;
-      max-height: 60vh;
-      margin: auto;
-      border-radius: 12px;
+      max-height: 62vh;
+      object-fit: contain;
+      pointer-events: none;
+      -webkit-user-drag: none;
     }
-
-    .info {
-      margin-top: 12px;
-      font-size: 14px;
-      color: #555;
+    .contain-preview {
+      display: none;
+      max-width: 100%;
+      max-height: 62vh;
+      border: 1px solid #c9ced6;
+      background-color: #fff;
+      background-image:
+        linear-gradient(45deg, #dfe3e8 25%, transparent 25%),
+        linear-gradient(-45deg, #dfe3e8 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #dfe3e8 75%),
+        linear-gradient(-45deg, transparent 75%, #dfe3e8 75%);
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+      background-size: 16px 16px;
+      pointer-events: none;
+    }
+    .crop-selection {
+      position: absolute;
+      z-index: 1;
+      display: none;
+      border: 2px solid #fff;
+      background-image:
+        linear-gradient(to right, transparent calc(33.333% - .5px), rgba(255,255,255,.72) 33.333%, transparent calc(33.333% + .5px)),
+        linear-gradient(to right, transparent calc(66.666% - .5px), rgba(255,255,255,.72) 66.666%, transparent calc(66.666% + .5px)),
+        linear-gradient(to bottom, transparent calc(33.333% - .5px), rgba(255,255,255,.72) 33.333%, transparent calc(33.333% + .5px)),
+        linear-gradient(to bottom, transparent calc(66.666% - .5px), rgba(255,255,255,.72) 66.666%, transparent calc(66.666% + .5px));
+      box-shadow: 0 0 0 9999px rgba(10, 15, 24, .58), 0 0 0 1px rgba(0,0,0,.32);
+      cursor: grab;
+      touch-action: none;
+    }
+    .crop-selection::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 38px;
+      height: 38px;
+      border: 2px solid rgba(255,255,255,.92);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 1px 5px rgba(0,0,0,.32);
+    }
+    .crop-selection:focus-visible { outline: 3px solid #76a7ff; outline-offset: -3px; }
+    .crop-selection.dragging { cursor: grabbing; }
+    .crop-selection.resizing { cursor: nwse-resize; }
+    .crop-selection.profile-safe-area::before {
+      content: "";
+      position: absolute;
+      inset: 3px;
+      border: 2px dashed rgba(255, 226, 102, .96);
+      border-radius: 50%;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.6));
+      pointer-events: none;
+    }
+    .crop-handle {
+      position: absolute;
+      z-index: 2;
+      width: 34px;
+      height: 34px;
+      touch-action: none;
+    }
+    .crop-handle::after {
+      content: "";
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-color: #fff;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.65));
+    }
+    .crop-handle.nw { top: -17px; left: -17px; cursor: nwse-resize; }
+    .crop-handle.ne { top: -17px; right: -17px; cursor: nesw-resize; }
+    .crop-handle.sw { bottom: -17px; left: -17px; cursor: nesw-resize; }
+    .crop-handle.se { right: -17px; bottom: -17px; cursor: nwse-resize; }
+    .crop-handle.nw::after { right: 5px; bottom: 5px; border-top: 3px solid #fff; border-left: 3px solid #fff; }
+    .crop-handle.ne::after { bottom: 5px; left: 5px; border-top: 3px solid #fff; border-right: 3px solid #fff; }
+    .crop-handle.sw::after { top: 5px; right: 5px; border-bottom: 3px solid #fff; border-left: 3px solid #fff; }
+    .crop-handle.se::after { top: 5px; left: 5px; border-right: 3px solid #fff; border-bottom: 3px solid #fff; }
+    .crop-scale-control {
+      padding: 12px;
+      border: 1px solid #dfe4ea;
+      border-radius: 12px;
+      background: #f7f9fb;
+    }
+    .crop-scale-control[hidden] { display: none; }
+    .range-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .range-heading label { font-size: 14px; font-weight: 700; }
+    .range-heading output { color: #2f6f4e; font-size: 14px; font-weight: 800; }
+    input[type="range"] { width: 100%; min-height: 36px; margin: 6px 0 0; accent-color: #2f6f4e; }
+    .crop-meta { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-top: 10px; }
+    .crop-meta .info { min-width: 0; margin-top: 0; }
+    .crop-info { flex: 0 0 auto; color: #2f6f4e; font-size: 13px; font-weight: 700; text-align: right; }
+    .info { margin-top: 12px; font-size: 14px; color: #555; overflow-wrap: anywhere; }
+    .settings h2 { margin: 0 0 14px; font-size: 20px; }
+    .group { margin-bottom: 18px; }
+    .group > label { display: block; margin-bottom: 7px; font-weight: 700; font-size: 14px; }
+    .ratio-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+    .ratio-button {
+      border: 1px solid #d5d8de; border-radius: 10px; padding: 9px 6px; background: #fff; cursor: pointer;
+    }
+    .ratio-button.active { border-color: #222; background: #222; color: #fff; }
+    .custom-ratio {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: end;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .custom-ratio[hidden] { display: none; }
+    .custom-ratio .separator { padding-bottom: 12px; color: #666; font-weight: 800; }
+    .fit-options { display: grid; grid-template-columns: minmax(0, 1fr) minmax(100px, .4fr); gap: 10px; align-items: end; }
+    .padding-field[hidden] { display: none; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .field label { display: block; margin-bottom: 5px; color: #555; font-size: 13px; }
+    input[type="number"], select {
+      width: 100%; min-height: 44px; padding: 9px 11px; border: 1px solid #ccd0d7; border-radius: 10px; background: #fff;
+    }
+    .hint { margin: 7px 0 0; color: #777; font-size: 12px; line-height: 1.5; }
+    .primary, .download {
+      width: 100%; border: 0; border-radius: 12px; padding: 13px 16px; font-weight: 800; cursor: pointer;
+    }
+    .primary { background: #222; color: #fff; }
+    .primary:disabled { opacity: .45; cursor: not-allowed; }
+    .result { display: none; margin-top: 14px; padding: 13px; border-radius: 12px; background: #f3f5f8; }
+    .result strong { display: block; margin-bottom: 4px; }
+    .preset-validation { display: grid; gap: 5px; margin: 10px 0 0; padding: 9px; border-radius: 9px; background: #fff; font-size: 12px; }
+    .validation-item { display: flex; gap: 6px; align-items: flex-start; }
+    .validation-item.ok { color: #25613f; }
+    .validation-item.warning { color: #9b4f00; }
+    .download { display: none; margin-top: 10px; background: #e6f3eb; color: #174b2d; text-decoration: none; text-align: center; }
+    .status { min-height: 1.5em; margin-top: 10px; font-size: 13px; color: #666; }
+    #canvas { display: none; }
+    @media (min-width: 760px) {
+      .workspace { grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr); align-items: start; }
+      .settings { position: sticky; top: 16px; }
+    }
+    @media (min-width: 900px) and (min-height: 580px) {
+      body.has-image { overflow: hidden; }
+      body.has-image .app {
+        width: min(100%, 1440px);
+        height: 100vh;
+        height: 100dvh;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 10px;
+        padding: 12px 16px;
+      }
+      body.has-image .app-header {
+        min-width: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 18px;
+      }
+      body.has-image h1 { margin-bottom: 1px; font-size: 26px; line-height: 1.1; }
+      body.has-image .description { font-size: 13px; line-height: 1.35; }
+      body.has-image .privacy { margin-top: 2px; font-size: 11px; line-height: 1.35; }
+      body.has-image .drop-area {
+        width: auto;
+        min-width: 156px;
+        margin: 0;
+        padding: 9px 14px;
+        border-radius: 11px;
+        line-height: 1.3;
+      }
+      body.has-image .drop-default { display: none; }
+      body.has-image .drop-compact { display: inline; font-size: 13px; font-weight: 800; }
+      body.has-image .workspace {
+        min-height: 0;
+        height: 100%;
+        margin-top: 0;
+        gap: 12px;
+        grid-template-columns: minmax(0, 1fr) minmax(286px, 320px);
+        align-items: stretch;
+        overflow: hidden;
+      }
+      body.has-image .card { border-radius: 14px; padding: 12px; }
+      body.has-image .preview-card {
+        height: 100%;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-rows: auto auto auto minmax(110px, 1fr) auto;
+        grid-template-areas:
+          "heading heading"
+          "preset ratio"
+          "fit scale"
+          "preview preview"
+          "meta meta";
+        gap: 8px 12px;
+        overflow: hidden;
+      }
+      body.has-image .preview-heading { grid-area: heading; align-items: center; margin: 0; }
+      body.has-image .preview-heading h2 { font-size: 17px; }
+      body.has-image .crop-help { margin-top: 2px; font-size: 11px; line-height: 1.35; }
+      body.has-image .preview-heading .secondary { min-height: 36px; padding: 6px 10px; font-size: 12px; }
+      body.has-image .preset-group { grid-area: preset; }
+      body.has-image .crop-ratio-group { grid-area: ratio; }
+      body.has-image .fit-group { grid-area: fit; }
+      body.has-image .crop-scale-control { grid-area: scale; }
+      body.has-image .preview-card .group { min-width: 0; margin: 0; padding: 9px; }
+      body.has-image .preview-card .group > label { margin-bottom: 4px; font-size: 12px; }
+      body.has-image .preset-note { margin-top: 4px; font-size: 10px; line-height: 1.35; }
+      body.has-image .preset-source { margin-top: 2px; font-size: 10px; }
+      body.has-image .ratio-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+      body.has-image .ratio-button { min-height: 29px; padding: 4px 3px; border-radius: 7px; font-size: 11px; }
+      body.has-image .custom-ratio { gap: 5px; margin-top: 5px; }
+      body.has-image .custom-ratio .separator { padding-bottom: 9px; }
+      body.has-image input[type="number"],
+      body.has-image select { min-height: 36px; padding: 6px 8px; border-radius: 8px; font-size: 12px; }
+      body.has-image .field label { margin-bottom: 3px; font-size: 10px; }
+      body.has-image .fit-options { gap: 6px; }
+      body.has-image .hint { margin-top: 4px; font-size: 10px; line-height: 1.35; }
+      body.has-image .range-heading label,
+      body.has-image .range-heading output { font-size: 12px; }
+      body.has-image input[type="range"] { min-height: 24px; margin-top: 2px; }
+      body.has-image .preview-shell {
+        grid-area: preview;
+        min-height: 0;
+        height: 100%;
+        border-radius: 10px;
+      }
+      body.has-image #previewImage,
+      body.has-image .contain-preview { max-width: 100%; max-height: 100%; }
+      body.has-image .crop-meta { grid-area: meta; min-width: 0; margin: 0; font-size: 11px; }
+      body.has-image .crop-meta .info,
+      body.has-image .crop-info { margin: 0; font-size: 11px; line-height: 1.35; }
+      body.has-image .settings {
+        position: static;
+        top: auto;
+        height: 100%;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+      }
+      body.has-image .settings h2 { margin-bottom: 10px; font-size: 18px; }
+      body.has-image .settings .group { margin-bottom: 14px; }
+      body.has-image .primary,
+      body.has-image .download { padding: 11px 13px; }
+      body.has-image .result { margin-top: 10px; padding: 10px; }
+    }
+    @media (max-width: 430px) {
+      .ratio-grid { grid-template-columns: repeat(3, 1fr); }
+      .app {
+        padding-top: 16px;
+        padding-right: max(12px, env(safe-area-inset-right));
+        padding-left: max(12px, env(safe-area-inset-left));
+      }
+      .drop-area { margin-top: 18px; padding: 30px 12px; }
+      .card { padding: 12px; border-radius: 16px; }
+      .preview-heading { align-items: stretch; }
+      .preview-heading .secondary { padding-inline: 10px; }
+      .preview-shell { min-height: 200px; }
+      .crop-meta { display: block; }
+      .crop-info { margin-top: 5px; text-align: left; }
     }
   </style>
 </head>
-
 <body>
-
 <div class="app">
+  <header class="app-header">
+    <div class="brand-block">
+      <h1>Image Fit Tool</h1>
+      <p class="description">画像を投稿先に合わせて、比率・解像度・容量を整えるツール</p>
+      <p class="privacy">画像処理はブラウザ内で行い、画像ファイルをサーバーへ送信しません。</p>
+    </div>
+    <label class="drop-area" id="dropArea">
+      <span class="drop-default"><strong>画像をここにドロップ</strong><br>またはタップして画像を選択</span>
+      <span class="drop-compact">別の画像を選択</span>
+      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/*">
+    </label>
+  </header>
 
-  <h1>Image Fit Tool</h1>
+  <section class="workspace" id="workspace">
+    <div class="card preview-card">
+      <div class="preview-heading">
+        <div>
+          <h2>トリミング</h2>
+          <p class="crop-help" id="cropHelp">アスペクト比を選ぶと切り抜き枠が表示されます。</p>
+        </div>
+        <button class="secondary" id="resetCropButton" type="button" title="中央位置と選択範囲を初期状態へ戻す" disabled>リセット</button>
+      </div>
+      <div class="group preset-group">
+        <label for="purposePreset">用途プリセット</label>
+        <select id="purposePreset">
+          <option value="manual">手動で設定</option>
+          <optgroup label="プロフィール画像">
+            <option value="generic-profile">汎用プロフィール（1024 × 1024）</option>
+            <option value="x-profile">X プロフィール（400 × 400）</option>
+          </optgroup>
+          <optgroup label="LINE 静止画スタンプ">
+            <option value="line-sticker">スタンプ画像（370 × 320以内）</option>
+            <option value="line-main">メイン画像（240 × 240）</option>
+            <option value="line-tab">タブ画像（96 × 74）</option>
+          </optgroup>
+        </select>
+        <p class="preset-note" id="presetNote">用途を選ぶと、比率・解像度・形式・容量目安をまとめて設定します。</p>
+        <a class="preset-source" id="presetSource" href="#" target="_blank" rel="noreferrer" hidden>公式仕様を確認</a>
+      </div>
+      <div class="group crop-ratio-group">
+        <label>アスペクト比</label>
+        <div class="ratio-grid" id="ratioGrid">
+          <button class="ratio-button active" data-ratio="original" type="button">元画像</button>
+          <button class="ratio-button" data-ratio="1:1" type="button">1:1</button>
+          <button class="ratio-button" data-ratio="4:3" type="button">4:3</button>
+          <button class="ratio-button" data-ratio="3:4" type="button">3:4</button>
+          <button class="ratio-button" data-ratio="3:2" type="button">3:2</button>
+          <button class="ratio-button" data-ratio="2:3" type="button">2:3</button>
+          <button class="ratio-button" data-ratio="16:9" type="button">16:9</button>
+          <button class="ratio-button" data-ratio="9:16" type="button">9:16</button>
+          <button class="ratio-button" data-ratio="custom" type="button">カスタム</button>
+        </div>
+        <div class="custom-ratio" id="customRatioFields" hidden>
+          <div class="field">
+            <label for="customRatioWidth">横</label>
+            <input id="customRatioWidth" type="number" min="0.01" max="9999" step="0.01" inputmode="decimal" value="1">
+          </div>
+          <span class="separator" aria-hidden="true">:</span>
+          <div class="field">
+            <label for="customRatioHeight">縦</label>
+            <input id="customRatioHeight" type="number" min="0.01" max="9999" step="0.01" inputmode="decimal" value="1">
+          </div>
+        </div>
+        <p class="hint">選んだ比率を、切り抜き枠または全体表示プレビューへ反映します。</p>
+      </div>
+      <div class="group fit-group">
+        <label for="fitModeSelect">画像の収め方</label>
+        <div class="fit-options">
+          <select id="fitModeSelect">
+            <option value="cover">枠いっぱいに切り抜く</option>
+            <option value="contain">画像全体を余白内に収める</option>
+          </select>
+          <div class="field padding-field" id="paddingField" hidden>
+            <label for="paddingInput">余白 (px)</label>
+            <input id="paddingInput" type="number" min="0" max="2000" step="1" inputmode="numeric" value="0">
+          </div>
+        </div>
+        <p class="hint" id="fitModeHint">指定比率の枠いっぱいになるようトリミングします。</p>
+      </div>
+      <div class="group crop-scale-control" id="cropScaleControl" hidden>
+        <div class="range-heading">
+          <label for="cropScaleInput">選択範囲の大きさ</label>
+          <output id="cropScaleValue" for="cropScaleInput">100%</output>
+        </div>
+        <input id="cropScaleInput" type="range" min="10" max="100" step="1" value="100">
+        <p class="hint">小さくするほど画像を大きく切り抜きます。枠の四隅や2本指のピンチでも調整できます。</p>
+      </div>
+      <div class="preview-shell" id="previewShell">
+        <img id="previewImage" alt="選択画像のプレビュー">
+        <canvas class="contain-preview" id="containPreviewCanvas" aria-label="透明余白を含む出力プレビュー"></canvas>
+        <div class="crop-selection" id="cropSelection" role="application" aria-label="切り抜き範囲。1本指または矢印キーで移動、2本指または四隅で大きさを変更できます。">
+          <span class="crop-handle nw" data-handle="nw" aria-hidden="true"></span>
+          <span class="crop-handle ne" data-handle="ne" aria-hidden="true"></span>
+          <span class="crop-handle sw" data-handle="sw" aria-hidden="true"></span>
+          <span class="crop-handle se" data-handle="se" aria-hidden="true"></span>
+        </div>
+      </div>
+      <div class="crop-meta">
+        <div class="info" id="imageInfo"></div>
+        <div class="crop-info" id="cropInfo"></div>
+      </div>
+    </div>
 
-  <p class="description">
-    画像を投稿先に合わせて、トリミング・縮小するツール
-  </p>
+    <div class="card settings">
+      <h2>出力設定</h2>
 
-  <label class="drop-area" id="dropArea">
-    <strong>画像をここにドロップ</strong><br>
-    またはタップして画像を選択
+      <div class="group">
+        <label>出力解像度</label>
+        <div class="field-row">
+          <div class="field"><label for="widthInput">幅 (px)</label><input id="widthInput" type="number" min="1" max="12000"></div>
+          <div class="field"><label for="heightInput">高さ (px)</label><input id="heightInput" type="number" min="1" max="12000"></div>
+        </div>
+        <p class="hint">アスペクト比を選ぶと高さを自動計算します。必要なら数値は直接変更できます。</p>
+      </div>
 
-    <input
-      type="file"
-      id="fileInput"
-      accept="image/*"
-    >
-  </label>
+      <div class="group">
+        <label for="formatSelect">出力形式</label>
+        <select id="formatSelect">
+          <option value="image/jpeg">JPEG</option>
+          <option value="image/webp">WebP</option>
+          <option value="image/png">PNG</option>
+        </select>
+      </div>
 
-  <div class="preview" id="preview">
-    <img id="previewImage">
-    <div class="info" id="imageInfo"></div>
-  </div>
+      <div class="group">
+        <label for="targetSizeInput">目標ファイルサイズ (MB)</label>
+        <input id="targetSizeInput" type="number" min="0.05" max="100" step="0.05" value="2">
+        <p class="hint">JPEG / WebP は容量以下になるよう画質を自動調整します。PNGは容量指定の対象外です。</p>
+      </div>
 
+      <button class="primary" id="processButton" type="button" disabled>画像を作成</button>
+      <div class="status" id="status"></div>
+      <div class="result" id="result" role="status" aria-live="polite"></div>
+      <a class="download" id="downloadLink">画像を保存</a>
+    </div>
+  </section>
+
+  <canvas id="canvas"></canvas>
 </div>
 
 <script>
+  const dropArea = document.getElementById('dropArea');
+  const fileInput = document.getElementById('fileInput');
+  const workspace = document.getElementById('workspace');
+  const previewShell = document.getElementById('previewShell');
+  const previewImage = document.getElementById('previewImage');
+  const cropSelection = document.getElementById('cropSelection');
+  const cropHelp = document.getElementById('cropHelp');
+  const cropInfo = document.getElementById('cropInfo');
+  const resetCropButton = document.getElementById('resetCropButton');
+  const imageInfo = document.getElementById('imageInfo');
+  const purposePreset = document.getElementById('purposePreset');
+  const presetNote = document.getElementById('presetNote');
+  const presetSource = document.getElementById('presetSource');
+  const ratioGrid = document.getElementById('ratioGrid');
+  const customRatioFields = document.getElementById('customRatioFields');
+  const customRatioWidth = document.getElementById('customRatioWidth');
+  const customRatioHeight = document.getElementById('customRatioHeight');
+  const fitModeSelect = document.getElementById('fitModeSelect');
+  const paddingField = document.getElementById('paddingField');
+  const paddingInput = document.getElementById('paddingInput');
+  const fitModeHint = document.getElementById('fitModeHint');
+  const cropScaleControl = document.getElementById('cropScaleControl');
+  const cropScaleInput = document.getElementById('cropScaleInput');
+  const cropScaleValue = document.getElementById('cropScaleValue');
+  const containPreviewCanvas = document.getElementById('containPreviewCanvas');
+  const containPreviewCtx = containPreviewCanvas.getContext('2d');
+  const widthInput = document.getElementById('widthInput');
+  const heightInput = document.getElementById('heightInput');
+  const formatSelect = document.getElementById('formatSelect');
+  const targetSizeInput = document.getElementById('targetSizeInput');
+  const processButton = document.getElementById('processButton');
+  const status = document.getElementById('status');
+  const result = document.getElementById('result');
+  const downloadLink = document.getElementById('downloadLink');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
 
-const dropArea = document.getElementById("dropArea");
-const fileInput = document.getElementById("fileInput");
-const preview = document.getElementById("preview");
-const previewImage = document.getElementById("previewImage");
-const imageInfo = document.getElementById("imageInfo");
-
-fileInput.addEventListener("change", () => {
-  if (fileInput.files.length) {
-    loadImage(fileInput.files[0]);
-  }
-});
-
-dropArea.addEventListener("dragover", (event) => {
-  event.preventDefault();
-  dropArea.classList.add("dragover");
-});
-
-dropArea.addEventListener("dragleave", () => {
-  dropArea.classList.remove("dragover");
-});
-
-dropArea.addEventListener("drop", (event) => {
-  event.preventDefault();
-
-  dropArea.classList.remove("dragover");
-
-  const file = event.dataTransfer.files[0];
-
-  if (file) {
-    loadImage(file);
-  }
-});
-
-function loadImage(file) {
-
-  if (!file.type.startsWith("image/")) {
-    alert("画像ファイルを選択してください");
-    return;
-  }
-
-  const url = URL.createObjectURL(file);
-
-  previewImage.onload = () => {
-
-    const width = previewImage.naturalWidth;
-    const height = previewImage.naturalHeight;
-
-    const sizeMB =
-      (file.size / 1024 / 1024).toFixed(2);
-
-    imageInfo.textContent =
-      `${width} × ${height}px / ${sizeMB}MB / ${file.type}`;
-
-    preview.style.display = "block";
+  const LINE_GUIDELINE_URL = 'https://creator.line.me/en/guideline/sticker/';
+  const X_PROFILE_GUIDELINE_URL = 'https://help.x.com/en/managing-your-account/common-issues-when-uploading-profile-photo';
+  const PRESETS = {
+    'generic-profile': {
+      name: '汎用プロフィール',
+      ratio: '1:1', width: 1024, height: 1024, mime: 'image/jpeg', targetMB: 2,
+      exactSize: true, fitMode: 'cover', padding: 0, circularGuide: true,
+      note: '丸型表示にも使いやすい汎用正方形です。主要部分を中央寄りに配置してください。'
+    },
+    'x-profile': {
+      name: 'X プロフィール',
+      ratio: '1:1', width: 400, height: 400, mime: 'image/jpeg', targetMB: 2,
+      maxMB: 2, exactSize: true, fitMode: 'cover', padding: 0, circularGuide: true, source: X_PROFILE_GUIDELINE_URL,
+      note: 'X公式の推奨400 × 400px、プロフィール画像の上限2MBに合わせます。'
+    },
+    'line-sticker': {
+      name: 'LINE スタンプ画像',
+      ratio: 'custom', ratioWidth: 37, ratioHeight: 32, width: 370, height: 320,
+      mime: 'image/png', targetMB: 1, maxMB: 1, maxSize: true, requireEven: true, requireTransparency: true,
+      fitMode: 'contain', padding: 10, minPadding: 10,
+      source: LINE_GUIDELINE_URL,
+      note: 'LINE静止画スタンプの上限370 × 320pxです。絵柄全体を収め、周囲に10pxの透明余白を付けます。'
+    },
+    'line-main': {
+      name: 'LINE メイン画像',
+      ratio: '1:1', width: 240, height: 240, mime: 'image/png', targetMB: 1,
+      maxMB: 1, exactSize: true, requireEven: true, requireTransparency: true,
+      fitMode: 'contain', padding: 0, source: LINE_GUIDELINE_URL,
+      note: 'LINE静止画スタンプのメイン画像240 × 240pxです。背景透過が必要です。'
+    },
+    'line-tab': {
+      name: 'LINE タブ画像',
+      ratio: 'custom', ratioWidth: 48, ratioHeight: 37, width: 96, height: 74,
+      mime: 'image/png', targetMB: 1, maxMB: 1, exactSize: true, requireEven: true, requireTransparency: true,
+      fitMode: 'contain', padding: 0,
+      source: LINE_GUIDELINE_URL,
+      note: 'LINE静止画スタンプのトークルームタブ画像96 × 74pxです。背景透過が必要です。'
+    }
   };
 
-  previewImage.src = url;
-}
+  let sourceFile = null;
+  let sourceUrl = null;
+  let selectedRatio = 'original';
+  let customRatio = { width: 1, height: 1 };
+  let fitMode = 'cover';
+  let activePresetKey = 'manual';
+  let cropPosition = { x: .5, y: .5 };
+  const MIN_CROP_SCALE = .1;
+  let cropScale = 1;
+  const activeCropPointers = new Map();
+  let cropGesture = null;
+  let lastDownloadUrl = null;
 
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) loadImage(fileInput.files[0]);
+  });
+
+  ['dragenter', 'dragover'].forEach(type => dropArea.addEventListener(type, event => {
+    event.preventDefault();
+    dropArea.classList.add('dragover');
+  }));
+
+  ['dragleave', 'drop'].forEach(type => dropArea.addEventListener(type, event => {
+    event.preventDefault();
+    dropArea.classList.remove('dragover');
+  }));
+
+  dropArea.addEventListener('drop', event => {
+    const file = event.dataTransfer.files[0];
+    if (file) loadImage(file);
+  });
+
+  purposePreset.addEventListener('change', () => applyPreset(purposePreset.value));
+
+  ratioGrid.addEventListener('click', event => {
+    const button = event.target.closest('.ratio-button');
+    if (!button) return;
+    markSettingsCustomized();
+    selectedRatio = button.dataset.ratio;
+    updateRatioControls();
+    resetCropPosition();
+    syncOutputSize();
+    updateCropUI();
+    resetResult();
+  });
+
+  [customRatioWidth, customRatioHeight].forEach(input => input.addEventListener('input', () => {
+    const width = Number(customRatioWidth.value);
+    const height = Number(customRatioHeight.value);
+    if (!(width > 0) || !(height > 0)) return;
+    customRatio = { width, height };
+    if (selectedRatio !== 'custom') return;
+    markSettingsCustomized();
+    resetCropPosition();
+    syncOutputSize();
+    updateCropUI();
+    resetResult();
+  }));
+
+  fitModeSelect.addEventListener('change', () => {
+    markSettingsCustomized();
+    fitMode = fitModeSelect.value;
+    updateFitModeControls();
+    updateCropUI();
+    resetResult();
+  });
+
+  paddingInput.addEventListener('input', () => {
+    markSettingsCustomized();
+    updateCropUI();
+    resetResult();
+  });
+
+  cropScaleInput.addEventListener('input', () => {
+    if (!sourceFile || fitMode !== 'cover') return;
+    const crop = getCropRect();
+    setCropFromCenter(crop.sx + crop.sw / 2, crop.sy + crop.sh / 2, Number(cropScaleInput.value) / 100);
+    updateCropUI();
+    resetResult();
+  });
+
+  widthInput.addEventListener('input', () => {
+    markSettingsCustomized();
+    const ratio = getNumericRatio();
+    const width = Number(widthInput.value);
+    if (ratio && width > 0) heightInput.value = Math.max(1, Math.round(width / ratio));
+    updateCropUI();
+  });
+
+  heightInput.addEventListener('input', () => {
+    markSettingsCustomized();
+    const ratio = getNumericRatio();
+    const height = Number(heightInput.value);
+    if (ratio && height > 0) widthInput.value = Math.max(1, Math.round(height * ratio));
+    updateCropUI();
+  });
+
+  formatSelect.addEventListener('change', () => {
+    markSettingsCustomized();
+    updateTargetSizeState();
+    updateCropUI();
+  });
+
+  targetSizeInput.addEventListener('input', markSettingsCustomized);
+
+  processButton.addEventListener('click', processImage);
+  resetCropButton.addEventListener('click', () => {
+    resetCropPosition();
+    updateCropUI();
+    resetResult();
+  });
+
+  cropSelection.addEventListener('pointerdown', startCropGesture);
+  cropSelection.addEventListener('pointermove', moveCropGesture);
+  cropSelection.addEventListener('pointerup', endCropGesture);
+  cropSelection.addEventListener('pointercancel', endCropGesture);
+  cropSelection.addEventListener('lostpointercapture', endCropGesture);
+  cropSelection.addEventListener('keydown', moveCropWithKeyboard);
+  window.addEventListener('blur', cancelCropGesture);
+  window.addEventListener('resize', updateCropUI);
+
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(updateCropUI).observe(previewShell);
+  }
+
+  function loadImage(file) {
+    if (!file.type.startsWith('image/')) {
+      alert('画像ファイルを選択してください');
+      return;
+    }
+
+    sourceFile = file;
+    if (sourceUrl) URL.revokeObjectURL(sourceUrl);
+    sourceUrl = URL.createObjectURL(file);
+    previewImage.src = sourceUrl;
+
+    previewImage.onload = () => {
+      const width = previewImage.naturalWidth;
+      const height = previewImage.naturalHeight;
+      imageInfo.textContent = `${file.name} / ${width} × ${height}px / ${formatBytes(file.size)} / ${file.type || '形式不明'}`;
+      document.body.classList.add('has-image');
+      workspace.style.display = 'grid';
+      processButton.disabled = false;
+      if (activePresetKey !== 'manual') {
+        applyPreset(activePresetKey);
+      } else {
+        selectedRatio = 'original';
+        updateRatioControls();
+        resetCropPosition();
+        syncOutputSize();
+        resetResult();
+        requestAnimationFrame(updateCropUI);
+      }
+    };
+  }
+
+  function applyPreset(key) {
+    const preset = PRESETS[key];
+    activePresetKey = preset ? key : 'manual';
+    purposePreset.value = activePresetKey;
+    renderPresetInfo();
+    if (!preset) return;
+
+    if (preset.ratio === 'custom') {
+      customRatio = { width: preset.ratioWidth, height: preset.ratioHeight };
+    }
+    selectedRatio = preset.ratio;
+    updateRatioControls();
+    widthInput.value = preset.width;
+    heightInput.value = preset.height;
+    formatSelect.value = preset.mime;
+    targetSizeInput.value = preset.targetMB;
+    fitMode = preset.fitMode || 'cover';
+    fitModeSelect.value = fitMode;
+    paddingInput.value = preset.padding || 0;
+    updateFitModeControls();
+    updateTargetSizeState();
+    resetCropPosition();
+    resetResult();
+    requestAnimationFrame(updateCropUI);
+  }
+
+  function markSettingsCustomized() {
+    if (activePresetKey === 'manual') return;
+    activePresetKey = 'manual';
+    purposePreset.value = 'manual';
+    renderPresetInfo();
+  }
+
+  function renderPresetInfo() {
+    const preset = PRESETS[activePresetKey];
+    if (!preset) {
+      presetNote.textContent = '用途を選ぶと、比率・解像度・形式・容量目安をまとめて設定します。';
+      presetSource.hidden = true;
+      presetSource.removeAttribute('href');
+      return;
+    }
+    presetNote.textContent = preset.note;
+    if (preset.source) {
+      presetSource.href = preset.source;
+      presetSource.hidden = false;
+    } else {
+      presetSource.hidden = true;
+      presetSource.removeAttribute('href');
+    }
+  }
+
+  function updateRatioControls() {
+    document.querySelectorAll('.ratio-button').forEach(btn => btn.classList.toggle('active', btn.dataset.ratio === selectedRatio));
+    customRatioFields.hidden = selectedRatio !== 'custom';
+    customRatioWidth.value = customRatio.width;
+    customRatioHeight.value = customRatio.height;
+  }
+
+  function updateFitModeControls() {
+    fitModeSelect.value = fitMode;
+    paddingField.hidden = fitMode !== 'contain';
+    cropScaleControl.hidden = fitMode !== 'cover';
+    fitModeHint.textContent = fitMode === 'contain'
+      ? '画像を切らずに中央へ収めます。PNG / WebPの余白は透明、JPEGの余白は白になります。'
+      : '白い枠の内側だけを保存し、暗くなった外側は保存しません。';
+  }
+
+  function updateTargetSizeState() {
+    targetSizeInput.disabled = formatSelect.value === 'image/png';
+  }
+
+  function getNumericRatio() {
+    if (selectedRatio === 'original') {
+      return previewImage.naturalWidth / previewImage.naturalHeight;
+    }
+    if (selectedRatio === 'custom') {
+      return customRatio.width / customRatio.height;
+    }
+    const [w, h] = selectedRatio.split(':').map(Number);
+    return w / h;
+  }
+
+  function syncOutputSize() {
+    if (!sourceFile) return;
+    const ratio = getNumericRatio();
+    const sourceW = previewImage.naturalWidth;
+    const sourceH = previewImage.naturalHeight;
+    let cropW = sourceW;
+    let cropH = sourceH;
+    if (sourceW / sourceH > ratio) cropW = Math.round(sourceH * ratio);
+    else cropH = Math.round(sourceW / ratio);
+    widthInput.value = cropW;
+    heightInput.value = cropH;
+  }
+
+  function getBaseCropSize() {
+    const sourceW = previewImage.naturalWidth;
+    const sourceH = previewImage.naturalHeight;
+    const ratio = getNumericRatio();
+    let cropW = sourceW;
+    let cropH = sourceH;
+    if (sourceW / sourceH > ratio) cropW = sourceH * ratio;
+    else cropH = sourceW / ratio;
+    return { width: cropW, height: cropH };
+  }
+
+  function getCropSize(scale = cropScale) {
+    const base = getBaseCropSize();
+    const safeScale = clamp(scale, MIN_CROP_SCALE, 1);
+    return { width: base.width * safeScale, height: base.height * safeScale };
+  }
+
+  function getCropRect() {
+    const sourceW = previewImage.naturalWidth;
+    const sourceH = previewImage.naturalHeight;
+    const size = getCropSize();
+    const cropW = size.width;
+    const cropH = size.height;
+    const maxX = Math.max(0, sourceW - cropW);
+    const maxY = Math.max(0, sourceH - cropH);
+    return {
+      sx: maxX * clamp(cropPosition.x, 0, 1),
+      sy: maxY * clamp(cropPosition.y, 0, 1),
+      sw: cropW,
+      sh: cropH
+    };
+  }
+
+  function resetCropPosition() {
+    cropPosition = { x: .5, y: .5 };
+    cropScale = 1;
+    updateCropScaleControl();
+  }
+
+  function updateCropScaleControl() {
+    const percent = Math.round(cropScale * 100);
+    cropScaleInput.value = String(percent);
+    cropScaleValue.value = `${percent}%`;
+    cropScaleValue.textContent = `${percent}%`;
+  }
+
+  function setCropPositionFromRect(sx, sy, cropW, cropH) {
+    const maxX = Math.max(0, previewImage.naturalWidth - cropW);
+    const maxY = Math.max(0, previewImage.naturalHeight - cropH);
+    cropPosition.x = maxX ? clamp(sx, 0, maxX) / maxX : .5;
+    cropPosition.y = maxY ? clamp(sy, 0, maxY) / maxY : .5;
+  }
+
+  function setCropFromCenter(centerX, centerY, scale) {
+    cropScale = clamp(scale, MIN_CROP_SCALE, 1);
+    const size = getCropSize(cropScale);
+    setCropPositionFromRect(centerX - size.width / 2, centerY - size.height / 2, size.width, size.height);
+    updateCropScaleControl();
+  }
+
+  function updateCropUI() {
+    if (!sourceFile || !previewImage.complete || !previewImage.naturalWidth) {
+      cropSelection.style.display = 'none';
+      containPreviewCanvas.style.display = 'none';
+      previewImage.style.display = 'block';
+      cropInfo.textContent = '';
+      return;
+    }
+
+    if (fitMode === 'contain') {
+      previewImage.style.display = 'none';
+      cropSelection.style.display = 'none';
+      cropSelection.classList.remove('profile-safe-area');
+      cropSelection.tabIndex = -1;
+      containPreviewCanvas.style.display = 'block';
+      resetCropButton.disabled = true;
+      cropHelp.textContent = '画像全体を中央へ収めます。市松模様が透明部分、点線が指定余白です。';
+      const { width, height } = getOutputSize();
+      paddingInput.max = getMaxPadding(width, height);
+      const padding = getOutputPadding(width, height);
+      cropInfo.textContent = `画像全体を使用 / 指定余白 ${padding}px`;
+      updateContainPreview(width, height);
+      return;
+    }
+
+    previewImage.style.display = 'block';
+    containPreviewCanvas.style.display = 'none';
+    const shellRect = previewShell.getBoundingClientRect();
+    const imageRect = previewImage.getBoundingClientRect();
+    if (!imageRect.width || !imageRect.height) return;
+
+    const crop = getCropRect();
+    const scaleX = imageRect.width / previewImage.naturalWidth;
+    const scaleY = imageRect.height / previewImage.naturalHeight;
+    cropSelection.style.display = 'block';
+    cropSelection.style.left = `${imageRect.left - shellRect.left + crop.sx * scaleX}px`;
+    cropSelection.style.top = `${imageRect.top - shellRect.top + crop.sy * scaleY}px`;
+    cropSelection.style.width = `${crop.sw * scaleX}px`;
+    cropSelection.style.height = `${crop.sh * scaleY}px`;
+
+    const centered = Math.abs(cropPosition.x - .5) < .001 && Math.abs(cropPosition.y - .5) < .001;
+    const initialSize = Math.abs(cropScale - 1) < .001;
+    const profileGuide = Boolean(PRESETS[activePresetKey]?.circularGuide);
+    cropSelection.classList.toggle('profile-safe-area', profileGuide);
+    cropSelection.tabIndex = 0;
+    cropSelection.setAttribute('aria-disabled', 'false');
+    resetCropButton.disabled = centered && initialSize;
+    cropHelp.textContent = profileGuide
+      ? '枠内だけを保存します。1本指で移動、2本指・四隅で縮小できます。黄色の円はプロフィール表示の目安です。'
+      : '枠内だけを保存します。1本指で移動、2本指・四隅で大きさを調整できます。';
+    cropInfo.textContent = `使用範囲 ${Math.round(crop.sw)} × ${Math.round(crop.sh)}px / ${Math.round(cropScale * 100)}%`;
+    updateCropScaleControl();
+  }
+
+  function getOutputSize() {
+    return {
+      width: Math.max(1, Math.round(Number(widthInput.value) || 1)),
+      height: Math.max(1, Math.round(Number(heightInput.value) || 1))
+    };
+  }
+
+  function getOutputPadding(outW, outH) {
+    return clamp(Math.round(Number(paddingInput.value) || 0), 0, getMaxPadding(outW, outH));
+  }
+
+  function getMaxPadding(outW, outH) {
+    return Math.max(0, Math.floor((Math.min(outW, outH) - 1) / 2));
+  }
+
+  function getContainDrawRect(outW, outH) {
+    const padding = getOutputPadding(outW, outH);
+    const availableW = Math.max(1, outW - padding * 2);
+    const availableH = Math.max(1, outH - padding * 2);
+    const scale = Math.min(availableW / previewImage.naturalWidth, availableH / previewImage.naturalHeight);
+    const width = previewImage.naturalWidth * scale;
+    const height = previewImage.naturalHeight * scale;
+    return {
+      dx: (outW - width) / 2,
+      dy: (outH - height) / 2,
+      dw: width,
+      dh: height,
+      padding
+    };
+  }
+
+  function updateContainPreview(outW, outH) {
+    const maxEdge = 720;
+    const ratio = outW / outH;
+    const previewW = ratio >= 1 ? maxEdge : Math.max(1, Math.round(maxEdge * ratio));
+    const previewH = ratio >= 1 ? Math.max(1, Math.round(maxEdge / ratio)) : maxEdge;
+    containPreviewCanvas.width = previewW;
+    containPreviewCanvas.height = previewH;
+    containPreviewCtx.clearRect(0, 0, previewW, previewH);
+    if (formatSelect.value === 'image/jpeg') {
+      containPreviewCtx.fillStyle = '#fff';
+      containPreviewCtx.fillRect(0, 0, previewW, previewH);
+    }
+
+    const draw = getContainDrawRect(outW, outH);
+    const scaleX = previewW / outW;
+    const scaleY = previewH / outH;
+    containPreviewCtx.imageSmoothingEnabled = true;
+    containPreviewCtx.imageSmoothingQuality = 'high';
+    containPreviewCtx.drawImage(previewImage, draw.dx * scaleX, draw.dy * scaleY, draw.dw * scaleX, draw.dh * scaleY);
+
+    if (draw.padding > 0) {
+      containPreviewCtx.save();
+      containPreviewCtx.strokeStyle = 'rgba(29, 103, 65, .9)';
+      containPreviewCtx.lineWidth = 2;
+      containPreviewCtx.setLineDash([8, 6]);
+      containPreviewCtx.strokeRect(
+        draw.padding * scaleX,
+        draw.padding * scaleY,
+        previewW - draw.padding * scaleX * 2,
+        previewH - draw.padding * scaleY * 2
+      );
+      containPreviewCtx.restore();
+    }
+  }
+
+  function isCropMovable(crop = getCropRect()) {
+    return previewImage.naturalWidth - crop.sw > .5 || previewImage.naturalHeight - crop.sh > .5;
+  }
+
+  function startCropGesture(event) {
+    if (fitMode !== 'cover' || activeCropPointers.size >= 2) return;
+    const imageRect = previewImage.getBoundingClientRect();
+    if (!imageRect.width || !imageRect.height) return;
+
+    event.preventDefault();
+    activeCropPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    cropSelection.setPointerCapture(event.pointerId);
+
+    if (activeCropPointers.size === 2) {
+      startPinchGesture(imageRect);
+      return;
+    }
+
+    const crop = getCropRect();
+    const handle = event.target.closest('.crop-handle')?.dataset.handle;
+    if (handle) {
+      const isLeft = handle.endsWith('w');
+      const isTop = handle.startsWith('n');
+      cropGesture = {
+        type: 'resize',
+        pointerId: event.pointerId,
+        anchorX: isLeft ? crop.sx + crop.sw : crop.sx,
+        anchorY: isTop ? crop.sy + crop.sh : crop.sy,
+        signX: isLeft ? -1 : 1,
+        signY: isTop ? -1 : 1,
+        imageRect
+      };
+      updateCropGestureClasses();
+      return;
+    }
+
+    cropGesture = {
+      type: 'move',
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startSx: crop.sx,
+      startSy: crop.sy,
+      cropW: crop.sw,
+      cropH: crop.sh,
+      sourcePerPixelX: previewImage.naturalWidth / imageRect.width,
+      sourcePerPixelY: previewImage.naturalHeight / imageRect.height
+    };
+    updateCropGestureClasses();
+  }
+
+  function startPinchGesture(imageRect) {
+    const points = Array.from(activeCropPointers.values());
+    const crop = getCropRect();
+    cropGesture = {
+      type: 'pinch',
+      startDistance: Math.max(1, pointerDistance(points[0], points[1])),
+      startMidpoint: pointerMidpoint(points[0], points[1]),
+      startScale: cropScale,
+      startCenterX: crop.sx + crop.sw / 2,
+      startCenterY: crop.sy + crop.sh / 2,
+      sourcePerPixelX: previewImage.naturalWidth / imageRect.width,
+      sourcePerPixelY: previewImage.naturalHeight / imageRect.height
+    };
+    updateCropGestureClasses();
+  }
+
+  function moveCropGesture(event) {
+    if (!activeCropPointers.has(event.pointerId) || !cropGesture) return;
+    event.preventDefault();
+    activeCropPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (cropGesture.type === 'pinch' && activeCropPointers.size >= 2) {
+      const points = Array.from(activeCropPointers.values());
+      const distance = Math.max(1, pointerDistance(points[0], points[1]));
+      const midpoint = pointerMidpoint(points[0], points[1]);
+      const nextScale = cropGesture.startScale * distance / cropGesture.startDistance;
+      const centerX = cropGesture.startCenterX + (midpoint.x - cropGesture.startMidpoint.x) * cropGesture.sourcePerPixelX;
+      const centerY = cropGesture.startCenterY + (midpoint.y - cropGesture.startMidpoint.y) * cropGesture.sourcePerPixelY;
+      setCropFromCenter(centerX, centerY, nextScale);
+    } else if (cropGesture.type === 'move' && event.pointerId === cropGesture.pointerId) {
+      const nextX = cropGesture.startSx + (event.clientX - cropGesture.startX) * cropGesture.sourcePerPixelX;
+      const nextY = cropGesture.startSy + (event.clientY - cropGesture.startY) * cropGesture.sourcePerPixelY;
+      setCropPositionFromRect(nextX, nextY, cropGesture.cropW, cropGesture.cropH);
+    } else if (cropGesture.type === 'resize' && event.pointerId === cropGesture.pointerId) {
+      resizeCropFromHandle(event.clientX, event.clientY, cropGesture);
+    }
+
+    updateCropUI();
+    resetResult();
+  }
+
+  function resizeCropFromHandle(clientX, clientY, gesture) {
+    const point = clientToSourcePoint(clientX, clientY, gesture.imageRect);
+    const base = getBaseCropSize();
+    const rawW = Math.max(0, (point.x - gesture.anchorX) * gesture.signX);
+    const rawH = Math.max(0, (point.y - gesture.anchorY) * gesture.signY);
+    const desiredW = (rawW + rawH * getNumericRatio()) / 2;
+    const widthLimit = gesture.signX < 0 ? gesture.anchorX : previewImage.naturalWidth - gesture.anchorX;
+    const heightLimit = gesture.signY < 0 ? gesture.anchorY : previewImage.naturalHeight - gesture.anchorY;
+    const maxScale = Math.min(1, widthLimit / base.width, heightLimit / base.height);
+    cropScale = clamp(desiredW / base.width, MIN_CROP_SCALE, Math.max(MIN_CROP_SCALE, maxScale));
+
+    const size = getCropSize(cropScale);
+    const sx = gesture.signX < 0 ? gesture.anchorX - size.width : gesture.anchorX;
+    const sy = gesture.signY < 0 ? gesture.anchorY - size.height : gesture.anchorY;
+    setCropPositionFromRect(sx, sy, size.width, size.height);
+    updateCropScaleControl();
+  }
+
+  function clientToSourcePoint(clientX, clientY, imageRect) {
+    return {
+      x: clamp((clientX - imageRect.left) * previewImage.naturalWidth / imageRect.width, 0, previewImage.naturalWidth),
+      y: clamp((clientY - imageRect.top) * previewImage.naturalHeight / imageRect.height, 0, previewImage.naturalHeight)
+    };
+  }
+
+  function pointerDistance(a, b) {
+    return Math.hypot(b.x - a.x, b.y - a.y);
+  }
+
+  function pointerMidpoint(a, b) {
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+
+  function endCropGesture(event) {
+    if (!activeCropPointers.has(event.pointerId)) return;
+    activeCropPointers.delete(event.pointerId);
+    if (cropSelection.hasPointerCapture(event.pointerId)) cropSelection.releasePointerCapture(event.pointerId);
+
+    if (cropGesture?.type === 'pinch' && activeCropPointers.size === 1) {
+      const [pointerId, point] = activeCropPointers.entries().next().value;
+      const crop = getCropRect();
+      const imageRect = previewImage.getBoundingClientRect();
+      cropGesture = {
+        type: 'move',
+        pointerId,
+        startX: point.x,
+        startY: point.y,
+        startSx: crop.sx,
+        startSy: crop.sy,
+        cropW: crop.sw,
+        cropH: crop.sh,
+        sourcePerPixelX: previewImage.naturalWidth / imageRect.width,
+        sourcePerPixelY: previewImage.naturalHeight / imageRect.height
+      };
+    } else if (activeCropPointers.size === 0 || cropGesture?.pointerId === event.pointerId) {
+      cropGesture = null;
+    }
+    updateCropGestureClasses();
+  }
+
+  function cancelCropGesture() {
+    activeCropPointers.clear();
+    cropGesture = null;
+    updateCropGestureClasses();
+  }
+
+  function updateCropGestureClasses() {
+    cropSelection.classList.toggle('dragging', cropGesture?.type === 'move');
+    cropSelection.classList.toggle('resizing', cropGesture?.type === 'resize' || cropGesture?.type === 'pinch');
+  }
+
+  function moveCropWithKeyboard(event) {
+    if (event.key === '+' || event.key === '=') {
+      event.preventDefault();
+      const crop = getCropRect();
+      setCropFromCenter(crop.sx + crop.sw / 2, crop.sy + crop.sh / 2, cropScale - .05);
+      updateCropUI();
+      resetResult();
+      return;
+    }
+    if (event.key === '-' || event.key === '_') {
+      event.preventDefault();
+      const crop = getCropRect();
+      setCropFromCenter(crop.sx + crop.sw / 2, crop.sy + crop.sh / 2, cropScale + .05);
+      updateCropUI();
+      resetResult();
+      return;
+    }
+    const direction = {
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0],
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1]
+    }[event.key];
+    if (!direction || !isCropMovable()) return;
+    event.preventDefault();
+    const step = event.shiftKey ? .1 : .02;
+    cropPosition.x = clamp(cropPosition.x + direction[0] * step, 0, 1);
+    cropPosition.y = clamp(cropPosition.y + direction[1] * step, 0, 1);
+    updateCropUI();
+    resetResult();
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  async function processImage() {
+    if (!sourceFile) return;
+    const outW = Math.round(Number(widthInput.value));
+    const outH = Math.round(Number(heightInput.value));
+    if (!outW || !outH || outW < 1 || outH < 1 || outW > 12000 || outH > 12000) {
+      alert('出力解像度は1〜12000pxの範囲で指定してください');
+      return;
+    }
+    if (fitMode === 'contain') {
+      const requestedPadding = Math.round(Number(paddingInput.value) || 0);
+      const maxPadding = getMaxPadding(outW, outH);
+      if (requestedPadding < 0 || requestedPadding > maxPadding) {
+        alert(`余白は0〜${maxPadding}pxの範囲で指定してください`);
+        return;
+      }
+    }
+
+    processButton.disabled = true;
+    resetResult();
+    status.textContent = '画像を処理しています…';
+
+    try {
+      canvas.width = outW;
+      canvas.height = outH;
+      ctx.clearRect(0, 0, outW, outH);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      const mime = formatSelect.value;
+      if (fitMode === 'contain') {
+        if (mime === 'image/jpeg') {
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, outW, outH);
+        }
+        const draw = getContainDrawRect(outW, outH);
+        ctx.drawImage(previewImage, draw.dx, draw.dy, draw.dw, draw.dh);
+      } else {
+        const crop = getCropRect();
+        ctx.drawImage(previewImage, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, outW, outH);
+      }
+
+      let blob;
+      let quality = 0.92;
+
+      if (mime === 'image/png') {
+        blob = await canvasToBlob(mime);
+      } else {
+        const targetBytes = Math.max(.05, Number(targetSizeInput.value) || 2) * 1024 * 1024;
+        const encoded = await encodeUnderTarget(mime, targetBytes);
+        blob = encoded.blob;
+        quality = encoded.quality;
+      }
+
+      if (!blob) throw new Error('画像の生成に失敗しました');
+
+      if (lastDownloadUrl) URL.revokeObjectURL(lastDownloadUrl);
+      lastDownloadUrl = URL.createObjectURL(blob);
+      downloadLink.href = lastDownloadUrl;
+      downloadLink.download = makeFileName(sourceFile.name, mime);
+      downloadLink.style.display = 'block';
+
+      const qualityText = mime === 'image/png' ? 'PNG（画質指定なし）' : `品質 約${Math.round(quality * 100)}%`;
+      const validationHtml = buildPresetValidation(blob, outW, outH, mime);
+      result.innerHTML = `<strong>作成完了</strong>${outW} × ${outH}px / ${formatBytes(blob.size)}<br>${formatName(mime)} / ${qualityText}${validationHtml}`;
+      result.style.display = 'block';
+      status.textContent = '';
+    } catch (error) {
+      console.error(error);
+      status.textContent = '処理に失敗しました。別の画像や小さい解像度でお試しください。';
+    } finally {
+      processButton.disabled = false;
+    }
+  }
+
+  function buildPresetValidation(blob, outW, outH, mime) {
+    const preset = PRESETS[activePresetKey];
+    if (!preset) return '';
+
+    const checks = [];
+    const sizeOkay = preset.maxSize
+      ? outW <= preset.width && outH <= preset.height
+      : !preset.exactSize || (outW === preset.width && outH === preset.height);
+    const sizeRule = preset.maxSize ? `${preset.width} × ${preset.height}px以内` : `${preset.width} × ${preset.height}px`;
+    checks.push({ ok: sizeOkay, text: `寸法 ${outW} × ${outH}px（条件: ${sizeRule}）` });
+    checks.push({ ok: mime === preset.mime, text: `形式 ${formatName(mime)}（条件: ${formatName(preset.mime)}）` });
+
+    if (preset.fitMode) {
+      const modeLabel = preset.fitMode === 'contain' ? '画像全体を収める' : '枠いっぱいに切り抜く';
+      checks.push({ ok: fitMode === preset.fitMode, text: `収め方: ${modeLabel}` });
+    }
+    if (preset.minPadding) {
+      const padding = getOutputPadding(outW, outH);
+      checks.push({ ok: padding >= preset.minPadding, text: `指定余白 ${padding}px（目安 ${preset.minPadding}px以上）` });
+    }
+
+    if (preset.maxMB) {
+      checks.push({ ok: blob.size <= preset.maxMB * 1024 * 1024, text: `容量 ${formatBytes(blob.size)}（上限 ${preset.maxMB}MB）` });
+    }
+    if (preset.requireEven) {
+      checks.push({ ok: outW % 2 === 0 && outH % 2 === 0, text: '幅・高さが偶数' });
+    }
+    if (preset.requireTransparency) {
+      const transparency = canvasHasTransparency();
+      checks.push({
+        ok: transparency === true,
+        text: transparency === true
+          ? '透明部分を確認'
+          : transparency === false
+            ? '透明部分が見つかりません（LINEは背景透過必須）'
+            : '透明部分を自動確認できませんでした'
+      });
+    }
+
+    const rows = checks.map(check => `<div class="validation-item ${check.ok ? 'ok' : 'warning'}"><span aria-hidden="true">${check.ok ? '✓' : '⚠'}</span><span>${check.text}</span></div>`).join('');
+    return `<div class="preset-validation"><b>${preset.name}の自動確認</b>${rows}</div>`;
+  }
+
+  function canvasHasTransparency() {
+    try {
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      for (let i = 3; i < data.length; i += 4) {
+        if (data[i] < 255) return true;
+      }
+      return false;
+    } catch (error) {
+      console.warn('透過情報を確認できませんでした', error);
+      return null;
+    }
+  }
+
+  async function encodeUnderTarget(mime, targetBytes) {
+    let low = 0.05;
+    let high = 0.95;
+    let best = null;
+    let smallest = null;
+
+    for (let i = 0; i < 9; i++) {
+      const quality = (low + high) / 2;
+      const blob = await canvasToBlob(mime, quality);
+      if (!blob) throw new Error('エンコードに失敗しました');
+      if (!smallest || blob.size < smallest.blob.size) smallest = { blob, quality };
+      if (blob.size <= targetBytes) {
+        best = { blob, quality };
+        low = quality;
+      } else {
+        high = quality;
+      }
+    }
+    return best || smallest;
+  }
+
+  function canvasToBlob(mime, quality) {
+    return new Promise(resolve => canvas.toBlob(resolve, mime, quality));
+  }
+
+  function makeFileName(name, mime) {
+    const base = name.replace(/\.[^.]+$/, '') || 'image';
+    const ext = mime === 'image/jpeg' ? 'jpg' : mime === 'image/webp' ? 'webp' : 'png';
+    return `${base}-fit.${ext}`;
+  }
+
+  function formatName(mime) {
+    return mime === 'image/jpeg' ? 'JPEG' : mime === 'image/webp' ? 'WebP' : 'PNG';
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  function resetResult() {
+    status.textContent = '';
+    result.style.display = 'none';
+    downloadLink.style.display = 'none';
+  }
+
+  updateFitModeControls();
+  updateCropScaleControl();
+  updateTargetSizeState();
 </script>
-
 </body>
 </html>

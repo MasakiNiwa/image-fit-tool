@@ -91,6 +91,21 @@
       pointer-events: none;
       -webkit-user-drag: none;
     }
+    .contain-preview {
+      display: none;
+      max-width: 100%;
+      max-height: 62vh;
+      border: 1px solid #c9ced6;
+      background-color: #fff;
+      background-image:
+        linear-gradient(45deg, #dfe3e8 25%, transparent 25%),
+        linear-gradient(-45deg, #dfe3e8 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #dfe3e8 75%),
+        linear-gradient(-45deg, transparent 75%, #dfe3e8 75%);
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+      background-size: 16px 16px;
+      pointer-events: none;
+    }
     .crop-selection {
       position: absolute;
       z-index: 1;
@@ -142,6 +157,8 @@
     }
     .custom-ratio[hidden] { display: none; }
     .custom-ratio .separator { padding-bottom: 12px; color: #666; font-weight: 800; }
+    .fit-options { display: grid; grid-template-columns: minmax(0, 1fr) minmax(100px, .4fr); gap: 10px; align-items: end; }
+    .padding-field[hidden] { display: none; }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .field label { display: block; margin-bottom: 5px; color: #555; font-size: 13px; }
     input[type="number"], select {
@@ -161,7 +178,7 @@
     .validation-item.warning { color: #9b4f00; }
     .download { display: none; margin-top: 10px; background: #e6f3eb; color: #174b2d; text-decoration: none; text-align: center; }
     .status { min-height: 1.5em; margin-top: 10px; font-size: 13px; color: #666; }
-    canvas { display: none; }
+    #canvas { display: none; }
     @media (min-width: 760px) {
       .workspace { grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr); align-items: start; }
       .settings { position: sticky; top: 16px; }
@@ -245,10 +262,25 @@
             <input id="customRatioHeight" type="number" min="0.01" max="9999" step="0.01" inputmode="decimal" value="1">
           </div>
         </div>
-        <p class="hint">比率を選び、白い枠を指やマウスで動かして位置を調整できます。</p>
+        <p class="hint">選んだ比率を、切り抜き枠または全体表示プレビューへ反映します。</p>
+      </div>
+      <div class="group fit-group">
+        <label for="fitModeSelect">画像の収め方</label>
+        <div class="fit-options">
+          <select id="fitModeSelect">
+            <option value="cover">枠いっぱいに切り抜く</option>
+            <option value="contain">画像全体を余白内に収める</option>
+          </select>
+          <div class="field padding-field" id="paddingField" hidden>
+            <label for="paddingInput">余白 (px)</label>
+            <input id="paddingInput" type="number" min="0" max="2000" step="1" inputmode="numeric" value="0">
+          </div>
+        </div>
+        <p class="hint" id="fitModeHint">指定比率の枠いっぱいになるようトリミングします。</p>
       </div>
       <div class="preview-shell" id="previewShell">
         <img id="previewImage" alt="選択画像のプレビュー">
+        <canvas class="contain-preview" id="containPreviewCanvas" aria-label="透明余白を含む出力プレビュー"></canvas>
         <div class="crop-selection" id="cropSelection" role="application" aria-label="切り抜き範囲。ドラッグまたは矢印キーで移動できます。"></div>
       </div>
       <div class="crop-meta">
@@ -312,6 +344,12 @@
   const customRatioFields = document.getElementById('customRatioFields');
   const customRatioWidth = document.getElementById('customRatioWidth');
   const customRatioHeight = document.getElementById('customRatioHeight');
+  const fitModeSelect = document.getElementById('fitModeSelect');
+  const paddingField = document.getElementById('paddingField');
+  const paddingInput = document.getElementById('paddingInput');
+  const fitModeHint = document.getElementById('fitModeHint');
+  const containPreviewCanvas = document.getElementById('containPreviewCanvas');
+  const containPreviewCtx = containPreviewCanvas.getContext('2d');
   const widthInput = document.getElementById('widthInput');
   const heightInput = document.getElementById('heightInput');
   const formatSelect = document.getElementById('formatSelect');
@@ -329,32 +367,35 @@
     'generic-profile': {
       name: '汎用プロフィール',
       ratio: '1:1', width: 1024, height: 1024, mime: 'image/jpeg', targetMB: 2,
-      exactSize: true,
+      exactSize: true, fitMode: 'cover', padding: 0,
       note: '丸型表示にも使いやすい汎用正方形です。主要部分を中央寄りに配置してください。'
     },
     'x-profile': {
       name: 'X プロフィール',
       ratio: '1:1', width: 400, height: 400, mime: 'image/jpeg', targetMB: 2,
-      maxMB: 2, exactSize: true, source: X_PROFILE_GUIDELINE_URL,
+      maxMB: 2, exactSize: true, fitMode: 'cover', padding: 0, source: X_PROFILE_GUIDELINE_URL,
       note: 'X公式の推奨400 × 400px、プロフィール画像の上限2MBに合わせます。'
     },
     'line-sticker': {
       name: 'LINE スタンプ画像',
       ratio: 'custom', ratioWidth: 37, ratioHeight: 32, width: 370, height: 320,
       mime: 'image/png', targetMB: 1, maxMB: 1, maxSize: true, requireEven: true, requireTransparency: true,
+      fitMode: 'contain', padding: 10, minPadding: 10,
       source: LINE_GUIDELINE_URL,
-      note: 'LINE静止画スタンプの上限370 × 320pxです。背景透過と、絵柄の周囲約10pxの余白も確認してください。'
+      note: 'LINE静止画スタンプの上限370 × 320pxです。絵柄全体を収め、周囲に10pxの透明余白を付けます。'
     },
     'line-main': {
       name: 'LINE メイン画像',
       ratio: '1:1', width: 240, height: 240, mime: 'image/png', targetMB: 1,
-      maxMB: 1, exactSize: true, requireEven: true, requireTransparency: true, source: LINE_GUIDELINE_URL,
+      maxMB: 1, exactSize: true, requireEven: true, requireTransparency: true,
+      fitMode: 'contain', padding: 0, source: LINE_GUIDELINE_URL,
       note: 'LINE静止画スタンプのメイン画像240 × 240pxです。背景透過が必要です。'
     },
     'line-tab': {
       name: 'LINE タブ画像',
       ratio: 'custom', ratioWidth: 48, ratioHeight: 37, width: 96, height: 74,
       mime: 'image/png', targetMB: 1, maxMB: 1, exactSize: true, requireEven: true, requireTransparency: true,
+      fitMode: 'contain', padding: 0,
       source: LINE_GUIDELINE_URL,
       note: 'LINE静止画スタンプのトークルームタブ画像96 × 74pxです。背景透過が必要です。'
     }
@@ -364,6 +405,7 @@
   let sourceUrl = null;
   let selectedRatio = 'original';
   let customRatio = { width: 1, height: 1 };
+  let fitMode = 'cover';
   let activePresetKey = 'manual';
   let cropPosition = { x: .5, y: .5 };
   let dragState = null;
@@ -415,11 +457,26 @@
     resetResult();
   }));
 
+  fitModeSelect.addEventListener('change', () => {
+    markSettingsCustomized();
+    fitMode = fitModeSelect.value;
+    updateFitModeControls();
+    updateCropUI();
+    resetResult();
+  });
+
+  paddingInput.addEventListener('input', () => {
+    markSettingsCustomized();
+    updateCropUI();
+    resetResult();
+  });
+
   widthInput.addEventListener('input', () => {
     markSettingsCustomized();
     const ratio = getNumericRatio();
     const width = Number(widthInput.value);
     if (ratio && width > 0) heightInput.value = Math.max(1, Math.round(width / ratio));
+    updateCropUI();
   });
 
   heightInput.addEventListener('input', () => {
@@ -427,11 +484,13 @@
     const ratio = getNumericRatio();
     const height = Number(heightInput.value);
     if (ratio && height > 0) widthInput.value = Math.max(1, Math.round(height * ratio));
+    updateCropUI();
   });
 
   formatSelect.addEventListener('change', () => {
     markSettingsCustomized();
     updateTargetSizeState();
+    updateCropUI();
   });
 
   targetSizeInput.addEventListener('input', markSettingsCustomized);
@@ -500,6 +559,10 @@
     heightInput.value = preset.height;
     formatSelect.value = preset.mime;
     targetSizeInput.value = preset.targetMB;
+    fitMode = preset.fitMode || 'cover';
+    fitModeSelect.value = fitMode;
+    paddingInput.value = preset.padding || 0;
+    updateFitModeControls();
     updateTargetSizeState();
     resetCropPosition();
     resetResult();
@@ -536,6 +599,14 @@
     customRatioFields.hidden = selectedRatio !== 'custom';
     customRatioWidth.value = customRatio.width;
     customRatioHeight.value = customRatio.height;
+  }
+
+  function updateFitModeControls() {
+    fitModeSelect.value = fitMode;
+    paddingField.hidden = fitMode !== 'contain';
+    fitModeHint.textContent = fitMode === 'contain'
+      ? '画像を切らずに中央へ収めます。PNG / WebPの余白は透明、JPEGの余白は白になります。'
+      : '指定比率の枠いっぱいになるようトリミングします。';
   }
 
   function updateTargetSizeState() {
@@ -591,10 +662,29 @@
   function updateCropUI() {
     if (!sourceFile || !previewImage.complete || !previewImage.naturalWidth) {
       cropSelection.style.display = 'none';
+      containPreviewCanvas.style.display = 'none';
+      previewImage.style.display = 'block';
       cropInfo.textContent = '';
       return;
     }
 
+    if (fitMode === 'contain') {
+      previewImage.style.display = 'none';
+      cropSelection.style.display = 'none';
+      cropSelection.tabIndex = -1;
+      containPreviewCanvas.style.display = 'block';
+      resetCropButton.disabled = true;
+      cropHelp.textContent = '画像全体を中央へ収めます。市松模様が透明部分、点線が指定余白です。';
+      const { width, height } = getOutputSize();
+      paddingInput.max = getMaxPadding(width, height);
+      const padding = getOutputPadding(width, height);
+      cropInfo.textContent = `画像全体を使用 / 指定余白 ${padding}px`;
+      updateContainPreview(width, height);
+      return;
+    }
+
+    previewImage.style.display = 'block';
+    containPreviewCanvas.style.display = 'none';
     const shellRect = previewShell.getBoundingClientRect();
     const imageRect = previewImage.getBoundingClientRect();
     if (!imageRect.width || !imageRect.height) return;
@@ -618,6 +708,72 @@
       ? '白い枠を指やマウスでドラッグして、残したい位置へ動かせます。'
       : '元画像全体を使用します。別のアスペクト比を選ぶと位置を調整できます。';
     cropInfo.textContent = `使用範囲 ${Math.round(crop.sw)} × ${Math.round(crop.sh)}px`;
+  }
+
+  function getOutputSize() {
+    return {
+      width: Math.max(1, Math.round(Number(widthInput.value) || 1)),
+      height: Math.max(1, Math.round(Number(heightInput.value) || 1))
+    };
+  }
+
+  function getOutputPadding(outW, outH) {
+    return clamp(Math.round(Number(paddingInput.value) || 0), 0, getMaxPadding(outW, outH));
+  }
+
+  function getMaxPadding(outW, outH) {
+    return Math.max(0, Math.floor((Math.min(outW, outH) - 1) / 2));
+  }
+
+  function getContainDrawRect(outW, outH) {
+    const padding = getOutputPadding(outW, outH);
+    const availableW = Math.max(1, outW - padding * 2);
+    const availableH = Math.max(1, outH - padding * 2);
+    const scale = Math.min(availableW / previewImage.naturalWidth, availableH / previewImage.naturalHeight);
+    const width = previewImage.naturalWidth * scale;
+    const height = previewImage.naturalHeight * scale;
+    return {
+      dx: (outW - width) / 2,
+      dy: (outH - height) / 2,
+      dw: width,
+      dh: height,
+      padding
+    };
+  }
+
+  function updateContainPreview(outW, outH) {
+    const maxEdge = 720;
+    const ratio = outW / outH;
+    const previewW = ratio >= 1 ? maxEdge : Math.max(1, Math.round(maxEdge * ratio));
+    const previewH = ratio >= 1 ? Math.max(1, Math.round(maxEdge / ratio)) : maxEdge;
+    containPreviewCanvas.width = previewW;
+    containPreviewCanvas.height = previewH;
+    containPreviewCtx.clearRect(0, 0, previewW, previewH);
+    if (formatSelect.value === 'image/jpeg') {
+      containPreviewCtx.fillStyle = '#fff';
+      containPreviewCtx.fillRect(0, 0, previewW, previewH);
+    }
+
+    const draw = getContainDrawRect(outW, outH);
+    const scaleX = previewW / outW;
+    const scaleY = previewH / outH;
+    containPreviewCtx.imageSmoothingEnabled = true;
+    containPreviewCtx.imageSmoothingQuality = 'high';
+    containPreviewCtx.drawImage(previewImage, draw.dx * scaleX, draw.dy * scaleY, draw.dw * scaleX, draw.dh * scaleY);
+
+    if (draw.padding > 0) {
+      containPreviewCtx.save();
+      containPreviewCtx.strokeStyle = 'rgba(29, 103, 65, .9)';
+      containPreviewCtx.lineWidth = 2;
+      containPreviewCtx.setLineDash([8, 6]);
+      containPreviewCtx.strokeRect(
+        draw.padding * scaleX,
+        draw.padding * scaleY,
+        previewW - draw.padding * scaleX * 2,
+        previewH - draw.padding * scaleY * 2
+      );
+      containPreviewCtx.restore();
+    }
   }
 
   function isCropMovable(crop = getCropRect()) {
@@ -694,6 +850,14 @@
       alert('出力解像度は1〜12000pxの範囲で指定してください');
       return;
     }
+    if (fitMode === 'contain') {
+      const requestedPadding = Math.round(Number(paddingInput.value) || 0);
+      const maxPadding = getMaxPadding(outW, outH);
+      if (requestedPadding < 0 || requestedPadding > maxPadding) {
+        alert(`余白は0〜${maxPadding}pxの範囲で指定してください`);
+        return;
+      }
+    }
 
     processButton.disabled = true;
     resetResult();
@@ -703,12 +867,21 @@
       canvas.width = outW;
       canvas.height = outH;
       ctx.clearRect(0, 0, outW, outH);
-      const crop = getCropRect();
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(previewImage, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, outW, outH);
-
       const mime = formatSelect.value;
+      if (fitMode === 'contain') {
+        if (mime === 'image/jpeg') {
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, outW, outH);
+        }
+        const draw = getContainDrawRect(outW, outH);
+        ctx.drawImage(previewImage, draw.dx, draw.dy, draw.dw, draw.dh);
+      } else {
+        const crop = getCropRect();
+        ctx.drawImage(previewImage, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, outW, outH);
+      }
+
       let blob;
       let quality = 0.92;
 
@@ -754,6 +927,15 @@
     checks.push({ ok: sizeOkay, text: `寸法 ${outW} × ${outH}px（条件: ${sizeRule}）` });
     checks.push({ ok: mime === preset.mime, text: `形式 ${formatName(mime)}（条件: ${formatName(preset.mime)}）` });
 
+    if (preset.fitMode) {
+      const modeLabel = preset.fitMode === 'contain' ? '画像全体を収める' : '枠いっぱいに切り抜く';
+      checks.push({ ok: fitMode === preset.fitMode, text: `収め方: ${modeLabel}` });
+    }
+    if (preset.minPadding) {
+      const padding = getOutputPadding(outW, outH);
+      checks.push({ ok: padding >= preset.minPadding, text: `指定余白 ${padding}px（目安 ${preset.minPadding}px以上）` });
+    }
+
     if (preset.maxMB) {
       checks.push({ ok: blob.size <= preset.maxMB * 1024 * 1024, text: `容量 ${formatBytes(blob.size)}（上限 ${preset.maxMB}MB）` });
     }
@@ -765,10 +947,10 @@
       checks.push({
         ok: transparency === true,
         text: transparency === true
-          ? '透過背景を確認'
+          ? '透明部分を確認'
           : transparency === false
-            ? '透過背景が見つかりません（LINEは背景透過必須）'
-            : '透過背景を自動確認できませんでした'
+            ? '透明部分が見つかりません（LINEは背景透過必須）'
+            : '透明部分を自動確認できませんでした'
       });
     }
 

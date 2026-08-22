@@ -29,7 +29,7 @@
       --border-strong: #cdd2e0;
       --text: #1a1d29;
       --text-2: #4d5468;
-      --text-3: #78809a;
+      --text-3: #687088;
 
       --accent: #5a4cf0;
       --accent-hover: #4a3ce0;
@@ -751,7 +751,7 @@
     }
 
     /* ---------- responsive: desktop app shell ---------- */
-    @media (min-width: 920px) and (min-height: 600px) {
+    @media (min-width: 900px) and (min-height: 580px) {
       body.has-image { overflow: hidden; }
       body.has-image .app {
         width: min(100%, 1480px);
@@ -863,6 +863,8 @@
       body.has-image .top-bar { gap: 12px; }
       body.has-image .privacy { display: none; }
       body.has-image .drop-area { padding: 10px 14px; }
+      .icon-button { width: 44px; height: 44px; }
+      body.has-image .preview-heading .secondary { min-height: 44px; }
       body.has-image .settings .primary,
       body.has-image .settings .download { display: none !important; }
 
@@ -891,7 +893,6 @@
       body.has-image .drop-area { padding: 11px 13px; }
       body.has-image .brand-mark { width: 34px; height: 34px; border-radius: 10px; }
       body.has-image .brand-mark svg { width: 19px; height: 19px; }
-      body.has-image .icon-button { width: 38px; height: 38px; }
     }
     @media (max-width: 440px) {
       .app {
@@ -1304,6 +1305,7 @@
   const activeCropPointers = new Map();
   let cropGesture = null;
   let lastDownloadUrl = null;
+  let imageLoadRequestId = 0;
 
   fileInput.addEventListener('change', () => {
     if (fileInput.files.length) loadImage(fileInput.files[0]);
@@ -1442,20 +1444,35 @@
       return;
     }
 
+    const requestId = ++imageLoadRequestId;
     clearError();
     status.textContent = '画像を読み込んでいます…';
-    sourceFile = file;
+    sourceFile = null;
+    setProcessDisabled(true);
+    resetResult();
     if (sourceUrl) URL.revokeObjectURL(sourceUrl);
     sourceUrl = URL.createObjectURL(file);
 
     previewImage.onerror = () => {
+      if (requestId !== imageLoadRequestId) return;
+      previewImage.onload = null;
+      previewImage.onerror = null;
+      if (sourceUrl) URL.revokeObjectURL(sourceUrl);
+      sourceUrl = null;
+      previewImage.removeAttribute('src');
       status.textContent = '';
       sourceFile = null;
       setProcessDisabled(true);
+      document.body.classList.remove('has-image');
+      workspace.style.display = 'none';
+      imageInfo.textContent = '';
+      fileInput.value = '';
       showError('この画像を読み込めませんでした。別のファイルでお試しください。');
     };
 
     previewImage.onload = () => {
+      if (requestId !== imageLoadRequestId) return;
+      sourceFile = file;
       status.textContent = '';
       const width = previewImage.naturalWidth;
       const height = previewImage.naturalHeight;

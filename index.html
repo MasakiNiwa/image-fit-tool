@@ -262,9 +262,9 @@
     /* once an image is loaded the picker becomes a compact toolbar button */
     body.has-image .top-bar {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) auto auto;
       align-items: center;
-      gap: 14px;
+      gap: 10px;
     }
     body.has-image .app-header { align-items: center; }
     body.has-image h1 { font-size: 21px; }
@@ -744,6 +744,208 @@
     /* ---------- mobile sticky action bar ---------- */
     .action-bar { display: none; }
 
+
+    /* ---------- clear button (only once an image is loaded) ---------- */
+    .clear-button { display: none; }
+    body.has-image .clear-button { display: grid; }
+    .clear-button:hover { color: var(--danger); border-color: var(--danger); }
+
+    /* ---------- output size: link toggle ---------- */
+    .size-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: end;
+      gap: 8px;
+    }
+    .link-toggle {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 44px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      background: var(--surface-2);
+      color: var(--accent);
+      cursor: pointer;
+      transition: color .16s var(--ease), border-color .16s var(--ease), background .16s var(--ease);
+    }
+    .link-toggle svg { width: 19px; height: 19px; }
+    .link-toggle .unlinked { display: none; }
+    .link-toggle[aria-pressed="false"] { color: var(--text-3); }
+    .link-toggle[aria-pressed="false"] .linked { display: none; }
+    .link-toggle[aria-pressed="false"] .unlinked { display: block; }
+    .link-toggle:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .scale-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      margin: 8px 0 0;
+      padding: 7px 10px;
+      border-radius: var(--r-sm);
+      background: var(--warn-soft);
+      color: var(--warn);
+      font-size: 11.5px;
+      font-weight: 600;
+      line-height: 1.5;
+    }
+    .scale-note[hidden] { display: none; }
+
+    /* ---------- page-wide drop overlay ---------- */
+    .drop-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: none;
+      place-items: center;
+      padding: 24px;
+      background: color-mix(in srgb, var(--bg) 78%, transparent);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+    body.dragging-file .drop-overlay { display: grid; }
+    .drop-overlay-card {
+      display: grid;
+      justify-items: center;
+      gap: 6px;
+      width: min(100%, 460px);
+      padding: 40px 28px;
+      border: 2px dashed var(--accent);
+      border-radius: var(--r-xl);
+      background: var(--surface);
+      box-shadow: var(--shadow-lg);
+      text-align: center;
+      animation: rise .18s var(--ease);
+    }
+    .drop-overlay-card strong { font-size: 17px; letter-spacing: -.01em; }
+    .drop-overlay-card .drop-icon { margin: 0 0 6px; }
+
+    /* ---------- help dialog ---------- */
+    .help-dialog {
+      width: min(100% - 28px, 680px);
+      max-height: min(86vh, 820px);
+      margin: auto;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--r-xl);
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+    }
+    .help-dialog:not([open]) { display: none; }
+    .help-dialog::backdrop { background: rgba(10, 12, 22, .55); backdrop-filter: blur(3px); }
+    .help-dialog[open] { display: flex; flex-direction: column; animation: rise .22s var(--ease); }
+    .help-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 16px 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+    .help-head h2 {
+      display: flex; align-items: center; gap: 9px;
+      margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -.015em;
+    }
+    .help-head h2 svg { width: 19px; height: 19px; color: var(--accent); }
+    .help-body {
+      min-height: 0;
+      padding: 4px 20px 20px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .help-section { padding-top: 18px; }
+    .help-section + .help-section { border-top: 1px solid var(--border); }
+    .help-section h3 {
+      margin: 0 0 9px;
+      font-size: 13.5px; font-weight: 800; letter-spacing: .01em;
+      color: var(--accent);
+    }
+    .help-section p { margin: 0 0 8px; font-size: 13px; line-height: 1.7; color: var(--text-2); }
+    .help-section p:last-child { margin-bottom: 0; }
+
+    .help-steps { counter-reset: step; margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+    .help-steps li {
+      position: relative;
+      padding-left: 34px;
+      font-size: 13px; line-height: 1.65; color: var(--text-2);
+    }
+    .help-steps li::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute; left: 0; top: 1px;
+      display: grid; place-items: center;
+      width: 23px; height: 23px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px; font-weight: 800;
+    }
+    .help-steps li b { display: block; color: var(--text); font-size: 13.5px; }
+
+    .help-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+    .help-mode {
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      background: var(--surface-2);
+    }
+    .help-mode svg { display: block; width: 84px; height: 56px; margin-bottom: 8px; }
+    .help-mode .hm-img { fill: color-mix(in srgb, var(--accent) 32%, transparent); stroke: none; }
+    .help-mode .hm-cut { fill: color-mix(in srgb, var(--text) 55%, transparent); stroke: none; }
+    .help-mode .hm-canvas { fill: none; stroke: var(--border-strong); stroke-width: 2; stroke-dasharray: 4 3; }
+    .help-mode .hm-frame { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+    .help-mode b { display: block; margin-bottom: 3px; font-size: 13px; }
+    .help-mode span { font-size: 12.5px; line-height: 1.6; color: var(--text-2); }
+    .help-mode span b { display: inline; color: var(--text); }
+
+    .help-keys { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 14px; margin: 0; }
+    .help-keys dt { font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+    .help-keys dd { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--text-2); }
+    kbd {
+      display: inline-block;
+      min-width: 20px;
+      margin: 0 1px;
+      padding: 1px 5px;
+      border: 1px solid var(--border-strong);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      background: var(--surface);
+      color: var(--text);
+      font-family: var(--font-num);
+      font-size: 11px;
+      text-align: center;
+    }
+    .help-list { margin: 0; padding-left: 18px; }
+    .help-list li { margin-bottom: 6px; font-size: 12.5px; line-height: 1.65; color: var(--text-2); }
+    .help-list li:last-child { margin-bottom: 0; }
+    .help-note {
+      margin: 9px 0 0 !important;
+      padding: 9px 11px;
+      border-radius: var(--r-sm);
+      background: var(--surface-2);
+      font-size: 12px !important;
+      line-height: 1.6 !important;
+    }
+    .help-foot {
+      padding: 13px 20px calc(13px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+    .help-foot .primary { min-height: 44px; }
+
+    @media (max-width: 560px) {
+      .help-dialog { width: 100%; max-width: none; max-height: 92dvh; margin: auto 0 0; border-radius: var(--r-xl) var(--r-xl) 0 0; }
+      .help-head { padding-left: 16px; }
+      .help-body { padding-inline: 16px; }
+      .help-foot { padding-inline: 16px; }
+      .help-keys { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+      .help-keys dt { margin-top: 6px; }
+      .help-keys dt:first-child { margin-top: 0; }
+    }
+
     /* ---------- responsive: two column ---------- */
     @media (min-width: 780px) {
       .workspace { grid-template-columns: minmax(0, 1.35fr) minmax(310px, .65fr); align-items: start; }
@@ -765,7 +967,7 @@
       body.has-image .top-bar { grid-row: 1; }
       body.has-image .error-banner { grid-row: 2; margin-top: 0; }
       body.has-image .workspace { grid-row: 3; }
-      body.has-image .top-bar { gap: 18px; }
+      body.has-image .top-bar { gap: 10px; }
       body.has-image .drop-area { min-width: 150px; padding: 9px 15px; }
       body.has-image .workspace {
         min-height: 0;
@@ -815,6 +1017,10 @@
       body.has-image .seg-option span { min-height: 30px; gap: 7px; padding: 4px 9px; font-size: 11.5px; }
       body.has-image .seg-option span svg { width: 13px; height: 13px; }
       body.has-image .field label { margin-bottom: 3px; font-size: 10.5px; }
+      body.has-image .size-row { gap: 6px; }
+      body.has-image .link-toggle { width: 32px; height: 34px; }
+      body.has-image .link-toggle svg { width: 16px; height: 16px; }
+      body.has-image .scale-note { margin-top: 6px; padding: 6px 8px; font-size: 10.5px; }
       body.has-image .fit-options { gap: 7px; }
       body.has-image .hint { margin-top: 5px; font-size: 10.5px; line-height: 1.4; }
       body.has-image .range-heading label,
@@ -860,7 +1066,7 @@
       .app { padding-top: 20px; }
       body.has-image .app { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
       .app-header { gap: 14px; }
-      body.has-image .top-bar { gap: 12px; }
+      body.has-image .top-bar { gap: 8px; }
       body.has-image .privacy { display: none; }
       body.has-image .drop-area { padding: 10px 14px; }
       .icon-button { width: 44px; height: 44px; }
@@ -887,8 +1093,13 @@
       .fit-options { grid-template-columns: minmax(0, 1fr); }
       .padding-field { max-width: 160px; }
     }
+    @media (max-width: 560px) {
+      /* four toolbar actions leave no room for the wordmark; the brand mark carries it */
+      body.has-image h1 { display: none; }
+      body.has-image .brand-block { align-items: center; }
+      .header-actions { gap: 8px; }
+    }
     @media (max-width: 480px) {
-      body.has-image h1 { font-size: 18px; white-space: nowrap; }
       body.has-image .drop-compact-label { display: none; }
       body.has-image .drop-area { padding: 11px 13px; }
       body.has-image .brand-mark { width: 34px; height: 34px; border-radius: 10px; }
@@ -944,6 +1155,13 @@
       </div>
     </div>
     <div class="header-actions">
+      <button class="icon-button" id="helpButton" type="button" aria-label="使い方を開く" title="使い方">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+          <path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.7-.9 1.3v.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M12 16.6v.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+      </button>
       <button class="icon-button theme-toggle" id="themeToggle" type="button" aria-label="表示テーマを切り替える" title="表示テーマを切り替える">
         <svg class="moon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
@@ -976,6 +1194,13 @@
         </span>
       <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/*" aria-label="画像ファイルを選択">
     </label>
+
+    <button class="icon-button clear-button" id="clearButton" type="button" aria-label="読み込んだ画像をクリアする" title="画像をクリア">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M5 7h14M10 7V5.5A1.5 1.5 0 0 1 11.5 4h1A1.5 1.5 0 0 1 14 5.5V7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M6.5 7h11l-.8 11.6a1.5 1.5 0 0 1-1.5 1.4H8.8a1.5 1.5 0 0 1-1.5-1.4L6.5 7Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+    </button>
   </div>
 
   <div class="error-banner" id="errorBanner" role="alert">
@@ -1127,11 +1352,23 @@
 
       <div class="group">
         <span class="group-label" id="outputSizeLabel">出力解像度</span>
-        <div class="field-row" role="group" aria-labelledby="outputSizeLabel">
+        <div class="size-row" role="group" aria-labelledby="outputSizeLabel">
           <div class="field"><label for="widthInput">幅 (px)</label><input id="widthInput" type="number" min="1" max="12000" inputmode="numeric"></div>
+          <button class="link-toggle" id="sizeLinkToggle" type="button" aria-pressed="true" aria-label="幅と高さの比率を固定する" title="縦横比を保つ／個別に指定">
+            <svg class="linked" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M9.5 14.5a3.5 3.5 0 0 1 0-5l2-2a3.5 3.5 0 0 1 5 5l-1 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M14.5 9.5a3.5 3.5 0 0 1 0 5l-2 2a3.5 3.5 0 0 1-5-5l1-1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <svg class="unlinked" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M10.5 13.5a3.5 3.5 0 0 1 .5-4.4l1.6-1.6a3.5 3.5 0 0 1 5 4.9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M13.5 10.5a3.5 3.5 0 0 1-.5 4.4l-1.6 1.6a3.5 3.5 0 0 1-5-4.9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M4 4l16 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
           <div class="field"><label for="heightInput">高さ (px)</label><input id="heightInput" type="number" min="1" max="12000" inputmode="numeric"></div>
         </div>
-        <p class="hint">アスペクト比を選ぶと高さを自動計算します。必要なら数値は直接変更できます。</p>
+        <p class="hint" id="outputSizeHint">縦横比を保ったまま、片方の数値からもう片方を自動計算します。</p>
+        <p class="scale-note" id="scaleNote" hidden></p>
       </div>
 
       <div class="group">
@@ -1175,6 +1412,117 @@
 
   <canvas id="canvas"></canvas>
 </div>
+
+<div class="drop-overlay" id="dropOverlay" aria-hidden="true">
+  <div class="drop-overlay-card">
+    <span class="drop-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4 15v2.5A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5V15" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+      </svg>
+    </span>
+    <strong>ここにドロップして読み込む</strong>
+  </div>
+</div>
+
+<dialog class="help-dialog" id="helpDialog" aria-labelledby="helpTitle">
+  <div class="help-head">
+    <h2 id="helpTitle">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.7-.9 1.3v.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 16.6v.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      使い方
+    </h2>
+    <button class="icon-button" id="helpClose" type="button" aria-label="閉じる" title="閉じる">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+
+  <div class="help-body">
+    <section class="help-section">
+      <h3>基本の流れ</h3>
+      <ol class="help-steps">
+        <li><b>画像を読み込む</b>画面のどこにでもドロップするか、「画像をここにドロップ」をタップして選びます。</li>
+        <li><b>用途プリセットを選ぶ</b>X・LINEなどを選ぶと、比率・解像度・形式・容量目安がまとめて設定されます。用途が一覧にない場合は「手動で設定」のまま進めます。</li>
+        <li><b>構図を決める</b>切り抜き枠を動かし、必要なら大きさを変えます。</li>
+        <li><b>「画像を作成」→「画像を保存」</b>生成結果とサムネイル、自動確認を見てから端末へ保存します。</li>
+      </ol>
+      <p class="help-note">別の画像に切り替えるときは、画面右上の「別の画像を選択」を使います。読み込んだ画像と設定をすべて消して最初からやり直すときは、その隣のごみ箱ボタンを押してください。</p>
+    </section>
+
+    <section class="help-section">
+      <h3>2つの「収め方」の違い</h3>
+      <div class="help-modes">
+        <div class="help-mode">
+          <svg viewBox="0 0 60 40" aria-hidden="true">
+            <rect x="1" y="1" width="58" height="38" rx="3" class="hm-img"/>
+            <rect x="1" y="1" width="11" height="38" class="hm-cut"/>
+            <rect x="48" y="1" width="11" height="38" class="hm-cut"/>
+            <rect x="12" y="1" width="36" height="38" class="hm-frame"/>
+          </svg>
+          <b>枠いっぱいに切り抜く</b>
+          <span>白い枠の内側だけを保存します。枠からはみ出した部分は<b>切り取られます</b>。プロフィール画像など、指定比率をきっちり埋めたいときに使います。</span>
+        </div>
+        <div class="help-mode">
+          <svg viewBox="0 0 60 40" aria-hidden="true">
+            <rect x="1" y="1" width="58" height="38" rx="3" class="hm-canvas"/>
+            <rect x="9" y="7" width="42" height="26" class="hm-img"/>
+          </svg>
+          <b>画像全体を余白内に収める</b>
+          <span>画像を<b>切らずに</b>中央へ収め、まわりに余白を付けます。PNG・WebPの余白は透明、JPEGの余白は白です。LINEスタンプのように絵柄全体を残したいときに使います。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="help-section">
+      <h3>切り抜き枠の操作</h3>
+      <dl class="help-keys">
+        <dt>スマートフォン</dt><dd>1本指でドラッグして移動、2本指のピンチで大きさを変更</dd>
+        <dt>マウス</dt><dd>枠の内側をドラッグして移動、四隅のハンドルをドラッグして大きさを変更</dd>
+        <dt>スライダー</dt><dd>「選択範囲の大きさ」で数値的に調整（小さくするほど拡大して切り抜かれます）</dd>
+        <dt>キーボード</dt><dd>枠を選択して<kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>で移動（<kbd>Shift</kbd>併用で大きく移動）、<kbd>+</kbd><kbd>-</kbd>で大きさを変更</dd>
+      </dl>
+      <p class="help-note">枠の中に見えている白い格子線と黄色い円は構図確認用のガイドです。保存する画像には描き込まれません。</p>
+    </section>
+
+    <section class="help-section">
+      <h3>出力サイズをピクセルで指定する</h3>
+      <p>「出力解像度」の幅・高さに数値を直接入力できます。ふたつの欄の間にある鎖ボタンで動作が変わります。</p>
+      <dl class="help-keys">
+        <dt>鎖がつながっている（既定）</dt><dd>縦横比を保ちます。片方を入力すると、もう片方が自動計算されます。</dd>
+        <dt>鎖を切った状態</dt><dd>幅と高さを個別に指定できます。入力した比率に合わせて切り抜き枠とプレビューも変わるため、画像が引き伸ばされることはありません。1200 × 628 のように決まった寸法が必要なときに使います。</dd>
+      </dl>
+      <p class="help-note">元の画像より大きい数値を指定すると拡大処理になり、輪郭がぼやけます。その場合は入力欄の下に注意が表示されます。</p>
+    </section>
+
+    <section class="help-section">
+      <h3>形式と容量</h3>
+      <dl class="help-keys">
+        <dt>JPEG</dt><dd>写真向き。軽く仕上がりますが透過は扱えません。目標容量に合わせて画質を自動調整します。</dd>
+        <dt>PNG</dt><dd>透過を保てる可逆形式。画質は劣化しませんが、容量指定による調整はできません。</dd>
+        <dt>WebP</dt><dd>透過に対応しつつ軽い形式。古いブラウザでは保存できないことがあり、その場合は画面に理由が表示されます。</dd>
+      </dl>
+      <p class="help-note">「目標ファイルサイズ」はJPEGとWebPにのみ働きます。最低画質でも指定容量を下回れないときは、出力解像度を下げてください。</p>
+    </section>
+
+    <section class="help-section">
+      <h3>プライバシー</h3>
+      <p>選んだ画像はブラウザの中だけで処理され、サーバーへ送信されません。ページを閉じると画像データは破棄されます。端末内に保存されるのは表示テーマ（ライト／ダーク）の設定だけです。</p>
+    </section>
+
+    <section class="help-section">
+      <h3>ご注意</h3>
+      <ul class="help-list">
+        <li>プリセットの自動確認は投稿・審査の通過を保証するものではありません。申請前に「公式仕様を確認」から最新の条件をご確認ください。</li>
+        <li>投稿先の仕様は予告なく変更されることがあります。</li>
+        <li>撮影日時や位置情報などのメタデータ（EXIF）は、保存する画像へ引き継がれません。</li>
+        <li>GIFなどのアニメーション画像は、最初の1コマの静止画として扱われます。</li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="help-foot">
+    <button class="primary" id="helpCloseFoot" type="button"><span>閉じる</span></button>
+  </div>
+</dialog>
 <script>
   const dropArea = document.getElementById('dropArea');
   const fileInput = document.getElementById('fileInput');
@@ -1216,6 +1564,14 @@
   const processButtonMobile = document.getElementById('processButtonMobile');
   const downloadLinkMobile = document.getElementById('downloadLinkMobile');
   const targetSizeHint = document.getElementById('targetSizeHint');
+  const helpButton = document.getElementById('helpButton');
+  const helpDialog = document.getElementById('helpDialog');
+  const helpClose = document.getElementById('helpClose');
+  const helpCloseFoot = document.getElementById('helpCloseFoot');
+  const clearButton = document.getElementById('clearButton');
+  const sizeLinkToggle = document.getElementById('sizeLinkToggle');
+  const outputSizeHint = document.getElementById('outputSizeHint');
+  const scaleNote = document.getElementById('scaleNote');
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
 
@@ -1298,6 +1654,7 @@
   let selectedRatio = 'original';
   let customRatio = { width: 1, height: 1 };
   let fitMode = 'cover';
+  let linkOutputSize = true;
   let activePresetKey = 'manual';
   let cropPosition = { x: .5, y: .5 };
   const MIN_CROP_SCALE = .1;
@@ -1308,35 +1665,67 @@
   let imageLoadRequestId = 0;
 
   fileInput.addEventListener('change', () => {
-    if (fileInput.files.length) loadImage(fileInput.files[0]);
+    const file = fileInput.files[0];
+    fileInput.value = '';
+    if (file) loadImage(file);
   });
 
   let dragDepth = 0;
 
-  dropArea.addEventListener('dragenter', event => {
+  function dragCarriesFile(event) {
+    return Array.from(event.dataTransfer?.types || []).includes('Files');
+  }
+
+  function endDragState() {
+    dragDepth = 0;
+    document.body.classList.remove('dragging-file');
+  }
+
+  window.addEventListener('dragenter', event => {
+    if (!dragCarriesFile(event)) return;
     event.preventDefault();
     dragDepth += 1;
-    dropArea.classList.add('dragover');
+    document.body.classList.add('dragging-file');
   });
 
-  dropArea.addEventListener('dragover', event => {
+  window.addEventListener('dragover', event => {
+    if (!dragCarriesFile(event)) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'copy';
   });
 
-  dropArea.addEventListener('dragleave', event => {
-    event.preventDefault();
+  window.addEventListener('dragleave', () => {
     dragDepth = Math.max(0, dragDepth - 1);
-    if (!dragDepth) dropArea.classList.remove('dragover');
+    if (!dragDepth) document.body.classList.remove('dragging-file');
   });
 
-  dropArea.addEventListener('drop', event => {
+  window.addEventListener('drop', event => {
+    if (!dragCarriesFile(event)) return;
     event.preventDefault();
-    dragDepth = 0;
-    dropArea.classList.remove('dragover');
+    endDragState();
     const file = event.dataTransfer.files[0];
     if (file) loadImage(file);
   });
+
+  window.addEventListener('blur', endDragState);
+
+  helpButton.addEventListener('click', () => {
+    if (typeof helpDialog.showModal === 'function') helpDialog.showModal();
+    else helpDialog.setAttribute('open', '');
+  });
+
+  [helpClose, helpCloseFoot].forEach(button => button.addEventListener('click', closeHelp));
+
+  helpDialog.addEventListener('click', event => {
+    if (event.target === helpDialog) closeHelp();
+  });
+
+  function closeHelp() {
+    if (typeof helpDialog.close === 'function') helpDialog.close();
+    else helpDialog.removeAttribute('open');
+  }
+
+  clearButton.addEventListener('click', clearImage);
 
   purposePreset.addEventListener('change', () => applyPreset(purposePreset.value));
 
@@ -1344,6 +1733,8 @@
     const button = event.target.closest('.ratio-button');
     if (!button) return;
     markSettingsCustomized();
+    linkOutputSize = true;
+    updateSizeLinkControl();
     selectedRatio = button.dataset.ratio;
     updateRatioControls();
     resetCropPosition();
@@ -1390,18 +1781,39 @@
 
   widthInput.addEventListener('input', () => {
     markSettingsCustomized();
-    const ratio = getNumericRatio();
-    const width = Number(widthInput.value);
-    if (ratio && width > 0) heightInput.value = Math.max(1, Math.round(width / ratio));
+    if (linkOutputSize) {
+      const ratio = getSelectedRatioValue();
+      const width = Number(widthInput.value);
+      if (ratio && width > 0) heightInput.value = Math.max(1, Math.round(width / ratio));
+    }
     updateCropUI();
     resetResult();
   });
 
   heightInput.addEventListener('input', () => {
     markSettingsCustomized();
-    const ratio = getNumericRatio();
-    const height = Number(heightInput.value);
-    if (ratio && height > 0) widthInput.value = Math.max(1, Math.round(height * ratio));
+    if (linkOutputSize) {
+      const ratio = getSelectedRatioValue();
+      const height = Number(heightInput.value);
+      if (ratio && height > 0) widthInput.value = Math.max(1, Math.round(height * ratio));
+    }
+    updateCropUI();
+    resetResult();
+  });
+
+  sizeLinkToggle.addEventListener('click', () => {
+    markSettingsCustomized();
+    linkOutputSize = !linkOutputSize;
+    if (linkOutputSize) {
+      // keep the numbers the user just typed by adopting them as the ratio
+      const { width, height } = getOutputSize();
+      if (Math.abs(width / height - getSelectedRatioValue()) > .001) {
+        customRatio = { width, height };
+        selectedRatio = 'custom';
+      }
+    }
+    updateSizeLinkControl();
+    updateRatioControls();
     updateCropUI();
     resetResult();
   });
@@ -1483,6 +1895,8 @@
       if (activePresetKey !== 'manual') {
         applyPreset(activePresetKey);
       } else {
+        linkOutputSize = true;
+        updateSizeLinkControl();
         selectedRatio = 'original';
         updateRatioControls();
         resetCropPosition();
@@ -1505,6 +1919,8 @@
     if (preset.ratio === 'custom') {
       customRatio = { width: preset.ratioWidth, height: preset.ratioHeight };
     }
+    linkOutputSize = true;
+    updateSizeLinkControl();
     selectedRatio = preset.ratio;
     updateRatioControls();
     widthInput.value = preset.width;
@@ -1547,11 +1963,11 @@
 
   function updateRatioControls() {
     document.querySelectorAll('.ratio-button').forEach(btn => {
-      const active = btn.dataset.ratio === selectedRatio;
+      const active = linkOutputSize && btn.dataset.ratio === selectedRatio;
       btn.classList.toggle('active', active);
       btn.setAttribute('aria-pressed', String(active));
     });
-    customRatioFields.hidden = selectedRatio !== 'custom';
+    customRatioFields.hidden = !linkOutputSize || selectedRatio !== 'custom';
     customRatioWidth.value = customRatio.width;
     customRatioHeight.value = customRatio.height;
   }
@@ -1565,6 +1981,85 @@
       : '白い枠の内側だけを保存し、暗くなった外側は保存しません。';
   }
 
+  function updateSizeLinkControl() {
+    sizeLinkToggle.setAttribute('aria-pressed', String(linkOutputSize));
+    sizeLinkToggle.setAttribute('aria-label', linkOutputSize
+      ? '幅と高さを個別に指定する'
+      : '幅と高さの比率を固定する');
+    outputSizeHint.textContent = linkOutputSize
+      ? '縦横比を保ったまま、片方の数値からもう片方を自動計算します。'
+      : '幅と高さを個別に指定できます。切り抜き枠も入力した比率に合わせて変わります。';
+  }
+
+  function getOutputScale() {
+    if (!sourceFile || !previewImage.naturalWidth) return null;
+    const { width, height } = getOutputSize();
+    if (fitMode === 'contain') {
+      const draw = getContainDrawRect(width, height);
+      return draw.dw / previewImage.naturalWidth;
+    }
+    const crop = getCropRect();
+    return crop.sw ? width / crop.sw : null;
+  }
+
+  function updateOutputSizeUI() {
+    const scale = getOutputScale();
+    if (!scale || scale <= 1.02) {
+      scaleNote.hidden = true;
+      scaleNote.textContent = '';
+      return;
+    }
+    scaleNote.hidden = false;
+    scaleNote.textContent = `元の画素数より約${Math.round(scale * 100)}%に拡大されます。輪郭がぼやけることがあります。`;
+  }
+
+  function clearImage() {
+    imageLoadRequestId += 1;
+    previewImage.onload = null;
+    previewImage.onerror = null;
+    previewImage.removeAttribute('src');
+    cancelCropGesture();
+    resetResult();
+    clearError();
+
+    if (sourceUrl) URL.revokeObjectURL(sourceUrl);
+    if (lastDownloadUrl) URL.revokeObjectURL(lastDownloadUrl);
+    sourceUrl = null;
+    lastDownloadUrl = null;
+    sourceFile = null;
+    fileInput.value = '';
+
+    selectedRatio = 'original';
+    customRatio = { width: 1, height: 1 };
+    fitMode = 'cover';
+    linkOutputSize = true;
+    activePresetKey = 'manual';
+    purposePreset.value = 'manual';
+    widthInput.value = '';
+    heightInput.value = '';
+    paddingInput.value = '0';
+    resetCropPosition();
+
+    document.body.classList.remove('has-image');
+    workspace.style.display = 'none';
+    cropSelection.style.display = 'none';
+    containPreviewCanvas.style.display = 'none';
+    imageInfo.textContent = '';
+    cropInfo.textContent = '';
+    cropHelp.textContent = 'アスペクト比を選ぶと切り抜き枠が表示されます。';
+    resetCropButton.disabled = true;
+    status.textContent = '';
+
+    renderPresetInfo();
+    updateRatioControls();
+    updateFitModeControls();
+    updateTargetSizeState();
+    updateSizeLinkControl();
+    updateOutputSizeUI();
+    setProcessDisabled(true);
+    fileInput.focus({ preventScroll: true });
+  }
+
   function updateTargetSizeState() {
     const isPng = formatSelect.value === 'image/png';
     targetSizeInput.disabled = isPng;
@@ -1574,6 +2069,14 @@
   }
 
   function getNumericRatio() {
+    if (!linkOutputSize) {
+      const { width, height } = getOutputSize();
+      return width / height;
+    }
+    return getSelectedRatioValue();
+  }
+
+  function getSelectedRatioValue() {
     if (selectedRatio === 'original') {
       const { naturalWidth, naturalHeight } = previewImage;
       return naturalWidth && naturalHeight ? naturalWidth / naturalHeight : 1;
@@ -1659,6 +2162,7 @@
   }
 
   function updateCropUI() {
+    updateOutputSizeUI();
     if (!sourceFile || !previewImage.complete || !previewImage.naturalWidth) {
       cropSelection.style.display = 'none';
       containPreviewCanvas.style.display = 'none';
@@ -2250,6 +2754,7 @@
   updateFitModeControls();
   updateCropScaleControl();
   updateTargetSizeState();
+  updateSizeLinkControl();
 </script>
 </body>
 </html>
